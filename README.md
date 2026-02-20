@@ -49,6 +49,108 @@ Copy and paste these into your MCP client (Claude Desktop, etc.) to see the inte
 
 ---
 
+## 📊 Real Output Examples
+
+### Example: `analytics_query` Response
+```json
+{
+  "rows": [
+    {
+      "keys": ["https://example.com/page1"],
+      "clicks": 1250,
+      "impressions": 45000,
+      "ctr": 2.78,
+      "position": 8.5
+    },
+    {
+      "keys": ["https://example.com/page2"],
+      "clicks": 890,
+      "impressions": 32000,
+      "ctr": 2.78,
+      "position": 12.3
+    }
+  ],
+  "totals": {
+    "clicks": 2140,
+    "impressions": 77000,
+    "ctr": 2.78,
+    "position": 10.4
+  },
+  "rowCount": 2
+}
+```
+
+### Example: `seo_low_hanging_fruit` Response
+```json
+{
+  "opportunities": [
+    {
+      "query": "best hiking trails near me",
+      "page": "https://example.com/hiking-guide",
+      "position": 15.2,
+      "impressions": 5200,
+      "clicks": 156,
+      "ctr": 3.0,
+      "recommendation": "Optimize title tag and meta description for 'best hiking trails'"
+    },
+    {
+      "query": "beginner guitar songs",
+      "page": "https://example.com/beginner-songs",
+      "position": 18.7,
+      "impressions": 8900,
+      "clicks": 178,
+      "ctr": 2.0,
+      "recommendation": "Add more detailed song tabs to improve CTR"
+    }
+  ],
+  "totalOpportunities": 2
+}
+```
+
+### Example: `sites_health_check` Response
+```json
+{
+  "site": "https://example.com/",
+  "health": {
+    "overall": "healthy",
+    "warnings": 2,
+    "errors": 0
+  },
+  "sitemapStatus": {
+    "submitted": 5,
+    "indexed": 4,
+    "issues": ["https://example.com/old-page"]
+  },
+  "trafficChange": {
+    "period": "week_over_week",
+    "changePercent": -12.5,
+    "status": "declining"
+  }
+}
+```
+
+### Example: `inspection_inspect` Response
+```json
+{
+  "inspectionResult": {
+    "inspectionUrl": "https://example.com/page",
+    "linkingCount": 150,
+    "indexingState": "INDEXING_ALLOWED",
+    "coverageStates": ["URL_IS_ON_WEB"],
+    "mobileUsability": {
+      "isMobileUsable": true,
+      "issues": []
+    },
+    "richResultsResult": {
+      "detectedItems": ["Article", "BreadcrumbList"],
+      "notDetectedItems": ["FAQ"]
+    }
+  }
+}
+```
+
+---
+
 ## 🔐 Authentication (Desktop Flow)
 
 Search Console MCP uses a **Secure Desktop Flow**. This provides high-security, professional grade authentication for your Google account:
@@ -155,6 +257,43 @@ These are low-level tools designed to be used by other AI agents to build comple
 | `schema_validate` | Validate Structured Data (JSON-LD). |
 
 
+
+## 🔧 Troubleshooting
+
+### Common OAuth Errors
+
+#### `Error: Invalid client credentials`
+**Cause:** The OAuth token has been revoked or expired.
+**Solution:** Run `npx search-console-mcp logout` to clear credentials, then `npx search-console-mcp setup` to re-authenticate.
+
+#### `Error: Access denied - insufficient permissions`
+**Cause:** Your Google account doesn't have access to the Search Console property.
+**Solution:** 
+1. Go to [Google Search Console](https://searchconsole.google.com/)
+2. Ensure your account is added as a user with appropriate permissions (Full or Restricted) for the property
+
+#### `Error: Token refresh failed`
+**Cause:** The refresh token is invalid or the OAuth consent was revoked.
+**Solution:** Run `npx search-console-mcp logout` and complete the setup flow again.
+
+#### `Error: Could not find valid certification path to requested target`
+**Cause:** Corporate firewall or proxy intercepting HTTPS traffic.
+**Solution:** Configure your proxy settings or run from an unrestricted network.
+
+#### `Error: Browser not found`
+**Cause:** No default browser configured on the system.
+**Solution:** Manually copy the auth URL and open it in your browser, then copy the redirect URL back to the terminal.
+
+#### Multiple Account Issues
+**Cause:** Tokens from multiple Google accounts are stored and the server picks the wrong one.
+**Solution:** Use `npx search-console-mcp logout user@example.com` to remove specific account credentials.
+
+### Need More Help?
+- Check the [FAQ](https://searchconsolemcp.mintlify.app/faq)
+- Open an [Issue](https://github.com/saurabhsharma2u/search-console-mcp/issues)
+- Join our [Discord](https://discord.gg/searchconsolemcp)
+
+---
 
 ## License
 
