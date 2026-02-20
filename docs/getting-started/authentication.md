@@ -22,10 +22,36 @@ Run the following command in your terminal:
 npx search-console-mcp setup
 ```
 
-1.  A local secure server will start.
-2.  Your browser will open to the Google Authorization page.
-3.  Grant access to your Search Console data.
-4.  The CLI will automatically fetch your email and securely store your credentials.
+**Step-by-step process:**
+
+1.  **Server Startup:** A local secure server starts on `http://127.0.0.1:8080` (or the next available port)
+2.  **Browser Opens:** Your default web browser automatically opens to the Google OAuth consent screen
+3.  **Authorization:** You select your Google account and grant permission to "See your Search Console data"
+4.  **Redirect:** Google redirects back to the local server with an authorization code
+5.  **Token Exchange:** The CLI exchanges the code for access and refresh tokens
+6.  **Keychain Storage:** Tokens are securely stored in your OS's native credential manager:
+    - **macOS:** Keychain (under "search-console-mcp" item)
+    - **Windows:** Credential Manager (under Windows Credentials)
+    - **Linux:** Secret Service (using libsecret)
+7.  **Email Detection:** The CLI automatically fetches your Google account email
+8.  **Success:** Configuration code is displayed for you to copy
+
+**Note:** If your browser doesn't open automatically, the command will display a URL for you to copy and paste manually.
+
+### Troubleshooting OAuth
+
+**Problem: "Browser didn't open"**
+- Solution: Copy the URL displayed in the terminal and paste it into your browser manually
+
+**Problem: "Authentication failed"**
+- Solution: Ensure you have at least "Restricted" permissions in Search Console
+- Go to Search Console > Settings > Users and permissions
+
+**Problem: "Access denied to site"**
+- Solution: Your account doesn't have permission to access the site
+- Contact the site owner to add your account with appropriate permissions
+
+For more authentication issues, see our [Troubleshooting Guide](/troubleshooting).
 
 ### Logout & Management
 

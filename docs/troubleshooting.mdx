@@ -1,0 +1,221 @@
+---
+title: "Troubleshooting"
+description: "Solutions to common issues and errors."
+---
+
+This guide covers common issues you might encounter when setting up or using the Search Console MCP server.
+
+## Authentication Issues
+
+### Error: "Authentication failed" or token errors
+
+**Problem:** You see errors related to authentication, tokens, or credentials.
+
+**Solutions:**
+
+1. **Run setup again:**
+   ```bash
+   npx search-console-mcp setup
+   ```
+
+2. **Clear existing credentials and re-authenticate:**
+   ```bash
+   npx search-console-mcp logout
+   npx search-console-mcp setup
+   ```
+
+3. **Check if your Google account has access to Search Console properties:**
+   - Go to [Google Search Console](https://search.google.com/search-console)
+   - Make sure you have at least one verified property
+   - If you don't see any sites, you need to verify ownership first
+
+### Error: "Access denied" or permission errors
+
+**Problem:** You can authenticate but get permission errors when accessing data.
+
+**Solutions:**
+
+1. **Verify your Search Console permissions:**
+   - Go to [Google Search Console](https://search.google.com/search-console)
+   - Select your site
+   - Click Settings > Users and permissions
+   - Make sure your account has at least "Restricted" permissions
+
+2. **For service accounts, ensure proper role assignment:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Navigate to IAM & Admin > Service Accounts
+   - Verify the service account has the necessary roles
+   - Add the service account email to Search Console users
+
+### Error: "Invalid credentials" or expired tokens
+
+**Problem:** Credentials are invalid or have expired.
+
+**Solutions:**
+
+1. **Logout and login again:**
+   ```bash
+   npx search-console-mcp logout
+   npx search-console-mcp setup
+   ```
+
+2. **For service accounts, check if the key file is valid:**
+   - Ensure the JSON key file hasn't been deleted
+   - Verify the file path in `GOOGLE_APPLICATION_CREDENTIALS` is correct
+   - Check that the service account hasn't been disabled
+
+### Error: "Browser didn't open" during setup
+
+**Problem:** The setup command doesn't automatically open your browser.
+
+**Solutions:**
+
+1. **Copy the authorization URL manually:**
+   - The setup command should display a URL
+   - Copy and paste it into your browser manually
+   - Complete the authorization there
+
+2. **Check your default browser settings:**
+   - Ensure a default browser is set on your system
+   - Try opening the URL in a different browser
+
+---
+
+## Connection Issues
+
+### Error: "Connection refused" or "Cannot connect"
+
+**Problem:** The MCP server can't connect to Google APIs.
+
+**Solutions:**
+
+1. **Check your internet connection:**
+   - Try accessing [Google Search Console](https://search.google.com/search-console) in your browser
+
+2. **Verify API access:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Navigate to APIs & Services > Library
+   - Search for "Search Console API"
+   - Ensure it's enabled
+
+3. **Check firewall or proxy settings:**
+   - Ensure your firewall isn't blocking Google APIs
+   - If behind a proxy, configure proxy settings in your environment
+
+### Error: "Timeout" during API calls
+
+**Problem:** API requests are timing out.
+
+**Solutions:**
+
+1. **Retry the request:**
+   - Temporary network issues can cause timeouts
+   - Try again after a few seconds
+
+2. **Check for large data requests:**
+   - Requests for very long time periods may timeout
+   - Try shorter date ranges
+
+3. **Verify quota limits:**
+   - Go to Google Cloud Console > APIs & Services > Quotas
+   - Check if you've exceeded your daily quota
+
+---
+
+## Data Issues
+
+### Error: "No data available" or empty results
+
+**Problem:** You're authenticated but get no data back.
+
+**Solutions:**
+
+1. **Check if the property has data:**
+   - Go to Google Search Console directly
+   - Verify the property has performance data
+   - New properties may take time to accumulate data
+
+2. **Verify the site URL format:**
+   - Use the exact URL format from Search Console
+   - Include `https://` or `http://` as appropriate
+   - Include or exclude `www.` based on how it's configured in Search Console
+
+3. **Check date range:**
+   - Ensure your date range has data
+   - Try expanding to a longer period
+
+### Error: "Rate limit exceeded"
+
+**Problem:** You've made too many API requests in a short time.
+
+**Solutions:**
+
+1. **Wait and retry:**
+   - Rate limits are temporary
+   - Wait a few minutes before making more requests
+
+2. **Reduce request frequency:**
+   - Batch multiple queries together
+   - Avoid making rapid successive requests
+
+---
+
+## Installation Issues
+
+### Error: "Command not found" or "npx not found"
+
+**Problem:** The `npx` command isn't recognized.
+
+**Solutions:**
+
+1. **Install Node.js:**
+   - Download from [nodejs.org](https://nodejs.org/)
+   - Minimum version required: Node.js 18 or higher
+
+2. **Use the full path to Node.js:**
+   - Find your Node.js installation path
+   - Use the full path in your MCP configuration
+
+3. **Try with npm instead:**
+   ```bash
+   npm install -g search-console-mcp
+   search-console-mcp setup
+   ```
+
+### Error: "Permission denied" during installation
+
+**Problem:** You don't have permission to install the package.
+
+**Solutions:**
+
+1. **Use sudo (macOS/Linux):**
+   ```bash
+   sudo npm install -g search-console-mcp
+   ```
+
+2. **Fix npm permissions:**
+   ```bash
+   mkdir ~/.npm-global
+   npm config set prefix '~/.npm-global'
+   echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc
+   source ~/.bashrc
+   ```
+
+---
+
+## Still Need Help?
+
+If you encountered an issue not covered here:
+
+1. **Search existing issues:**
+   - Check our [GitHub Issues](https://github.com/saurabhsharma2u/search-console-mcp/issues)
+   - Someone may have already reported and solved the same problem
+
+2. **Join our community:**
+   - [Discord Community](https://discord.gg/search-console-mcp)
+
+3. **Open a new issue:**
+   - Include your operating system and version
+   - Include the exact error message
+   - Include steps to reproduce the issue
+   - Add relevant logs (run with `DEBUG=* npx search-console-mcp setup`)

@@ -7,8 +7,21 @@ We designed `search-console-mcp` to work instantly with your favorite AI editor.
 
 ## Prerequisites
 
+Before you begin, ensure you have the following:
+
 1.  **Node.js 18 or higher**
+    - Check your Node.js version by running: `node --version`
+    - If you need to install Node.js, download it from [nodejs.org](https://nodejs.org/)
+    - Or use a version manager like [nvm](https://github.com/nvm-sh/nvm) (recommended for managing multiple Node.js versions)
+
 2.  **A verified Google Search Console property**
+    - Go to [Google Search Console](https://search.google.com/search-console)
+    - Add and verify ownership of your website
+    - You need at least "Restricted" level access to view data
+
+3.  **A Google account with appropriate permissions**
+    - Your Google account must be added as a user in Search Console
+    - Go to Settings > Users and permissions to check your access level
 
 ## 🚀 One-Line Setup
 
@@ -18,7 +31,21 @@ Run this command in your terminal. It will authenticate you with Google and gene
 npx search-console-mcp setup
 ```
 
-The tool will open your browser for secure authentication and then display the exact code snippet to copy-paste into your config.
+**What happens when you run this command:**
+
+1.  The tool starts a temporary local server to handle the OAuth callback
+2.  Your default web browser opens to the Google Authorization page
+3.  You grant permission to access your Search Console data
+4.  The CLI automatically:
+    - Retrieves your email address
+    - Creates secure credentials in your system's keychain
+    - Generates and displays the exact configuration code for your MCP client
+5.  The temporary server shuts down automatically
+
+**After the setup completes:**
+- Copy the displayed configuration code
+- Paste it into your MCP client configuration file
+- Restart your MCP client to load the new server
 
 ---
 
