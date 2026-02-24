@@ -16,7 +16,7 @@ A Model Context Protocol (MCP) server that transforms how you interact with **Go
 *   **Data Silos**: Manually checking Google, then Bing, then GA4.
 *   **Manual Correlation**: Exporting 3 different CSVs and using VLOOKUPs to see if your #1 ranking page actually converts.
 *   **Switching Fatigue**: Logging in and out to manage multiple clients or properties.
-*   **AI Context Limit's**: Uploading giant spreadsheets that hit context limit's and cause model hallucinations.
+*   **AI Context Limits**: Uploading giant spreadsheets that hit context limits and cause model hallucinations.
 
 ### ✅ The Search Console MCP Way
 *   **Platform Synergy**: **GSC + Bing + GA4** in a single context window. Stop exporting, start analyzing.
