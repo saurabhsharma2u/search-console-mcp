@@ -2,6 +2,7 @@ import * as bingSites from './sites.js';
 import * as bingSitemaps from './sitemaps.js';
 import * as bingAnalytics from './analytics.js';
 import * as bingCrawl from './crawl.js';
+import { limitConcurrency } from '../../common/concurrency.js';
 
 /**
  * Health status for a single Bing site property.
@@ -163,7 +164,7 @@ export async function healthCheck(siteUrl?: string): Promise<BingSiteHealthRepor
         return [];
     }
 
-    const reports = await Promise.all(allSites.map((site: any) => checkSite(site.Url)));
+    const reports = await limitConcurrency(allSites, 5, (site: any) => checkSite(site.Url));
 
     const order: Record<string, number> = { critical: 0, warning: 1, healthy: 2 };
     return reports.sort((a, b) => (order[a.status] || 0) - (order[b.status] || 0));
