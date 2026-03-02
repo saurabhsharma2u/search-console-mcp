@@ -100,7 +100,8 @@ server.tool(
         return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
       }
 
-      const allResults = await Promise.all(accounts.map(async (account) => {
+      // Use limitConcurrency to process accounts with a concurrency limit of 5 to avoid HTTP 429 rate limits
+      const allResults = await limitConcurrency(accounts, 5, async (account) => {
         try {
           const results = engine === "google"
             ? await sites.listSites(account.id)
@@ -117,7 +118,7 @@ server.tool(
             error: (e as Error).message
           };
         }
-      }));
+      });
 
       return {
         content: [{ type: "text", text: JSON.stringify(allResults, null, 2) }]
