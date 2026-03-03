@@ -32,6 +32,7 @@ import * as ga4Behavior from "./ga4/tools/behavior.js";
 import * as ga4PageSpeed from "./ga4/tools/pagespeed.js";
 import * as ga4GscComparator from "./common/tools/compare-engines/ga4-gsc-comparator.js";
 import * as ga4GscBingComparator from "./common/tools/compare-engines/ga4-gsc-bing-comparator.js";
+import * as ga4Properties from "./ga4/tools/properties.js";
 import { loadConfig, removeAccount, updateAccount, AccountConfig } from './common/auth/config.js';
 import { resolveAccount } from './common/auth/resolver.js';
 import { getSearchConsoleClient } from './google/client.js';
@@ -1744,6 +1745,24 @@ server.tool(
   }
 );
 // --- GA4 Tools ---
+
+server.tool(
+  "ga4_properties_list",
+  "List configured GA4 properties available to query",
+  {
+    accountId: z.string().optional().describe("Optional GA4 account ID to filter by")
+  },
+  async ({ accountId }) => {
+    try {
+      const result = await ga4Properties.listProperties(accountId);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
 
 server.tool(
   "analytics_page_performance",
