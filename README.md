@@ -94,6 +94,42 @@ npx search-console-mcp logout user@gmail.com
 
 ---
 
+## 🚀 Quick Start (CLI)
+
+```bash
+npx search-console-mcp setup              # authenticate Google/Bing/GA4 (desktop flow)
+npx search-console-mcp accounts list      # verify accounts were stored
+npx search-console-mcp tools              # list available tools
+```
+
+Run a sample query (replace with your site):
+
+```bash
+npx search-console-mcp call analytics_query \
+  --site https://example.com \
+  --start 2024-12-01 --end 2024-12-31 \
+  --dimensions query,page --limit 5
+```
+
+Example response (truncated):
+
+```json
+{
+  "rows": [
+    {
+      "query": "winter jackets",
+      "page": "https://example.com/winter-jackets",
+      "clicks": 1240,
+      "impressions": 54000,
+      "ctr": 0.023,
+      "position": 7.4
+    }
+  ],
+  "total_rows": 5,
+  "source": "google_search_console"
+}
+```
+
 ## 🔑 Alternative: Service Account (Advanced)
 
 For server-side environments or automated tasks where interactive login isn't possible, you can use a Google Cloud Service Account.
@@ -108,6 +144,14 @@ For server-side environments or automated tasks where interactive login isn't po
     ```
 
 ---
+
+## 🧰 Troubleshooting (OAuth & Setup)
+
+- **Browser doesn’t open during `setup`**: Re-run with `--no-browser` and follow the printed URL. Ensure localhost redirect isn’t blocked by a VPN.
+- **`invalid_grant` / `invalid_client`**: Remove cached tokens (`npx search-console-mcp logout`) and re-run `setup`; verify the Google account matches the authorized project.
+- **`insufficient_permissions`**: Check property access in GSC/GA4 and that the selected site matches an authorized property.
+- **Bing 401/403**: Regenerate the Bing API key and export `BING_API_KEY` before calling tools.
+- **Keychain/secret service errors**: Use the service account flow (`--engine=ga4` with `GOOGLE_APPLICATION_CREDENTIALS`) or ensure your OS keychain is unlocked.
 
 ## 🔑 Bing Webmaster Tools (API Key)
 
