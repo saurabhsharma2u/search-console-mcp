@@ -1,0 +1,63 @@
+{
+  "name": "saurabhsharma2u/search-console-mcp",
+  "description": "An MCP server to interact with Google Search Console and Bing Webmasters.",
+  "accepts": [
+    {
+      "network": "eip155:8453",
+      "asset": "USDC",
+      "address": "YOUR_WALLET_ADDRESS"
+    }
+  ],
+  "resources": [
+    {
+      "path": "/opportunity_matrix",
+      "price": "0.01",
+      "description": "Pay-per-call access to opportunity_matrix"
+    },
+    {
+      "path": "/search_console_query",
+      "price": "0.01",
+      "description": "Pay-per-call access to search_console_query"
+    },
+    {
+      "path": "/bing_webmaster_query",
+      "price": "0.01",
+      "description": "Pay-per-call access to bing_webmaster_query"
+    },
+    {
+      "path": "/ga4_analytics_query",
+      "price": "0.01",
+      "description": "Pay-per-call access to ga4_analytics_query"
+    },
+    {
+      "path": "/anomaly_detection",
+      "price": "0.01",
+      "description": "Pay-per-call access to anomaly_detection"
+    },
+    {
+      "path": "/pagespeed_audit",
+      "price": "0.01",
+      "description": "Pay-per-call access to pagespeed_audit"
+    },
+    {
+      "path": "/index_now_submission",
+      "price": "0.01",
+      "description": "Pay-per-call access to index_now_submission"
+    },
+    {
+      "path": "/list_accounts",
+      "price": "0.01",
+      "description": "Pay-per-call access to list_accounts"
+    },
+    {
+      "path": "/remove_account",
+      "price": "0.01",
+      "description": "Pay-per-call access to remove_account"
+    },
+    {
+      "path": "/add_site_boundary",
+      "price": "0.01",
+      "description": "Pay-per-call access to add_site_boundary"
+    }
+  ]
+}
