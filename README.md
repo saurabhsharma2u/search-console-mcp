@@ -259,3 +259,8 @@ These are low-level tools designed to be used by other AI agents to build comple
 
 [MIT](LICENSE)
 [Contributing](CONTRIBUTING.md)
+
+## Hosted deployment
+
+A hosted deployment is available on [Fronteir AI](https://fronteir.ai/mcp/saurabhsharma2u-search-console-mcp).
+
