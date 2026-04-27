@@ -3,6 +3,8 @@ import nodeMachineId from 'node-machine-id';
 import { AccountConfig, loadConfig, saveConfig, updateAccount, removeAccount } from '../common/auth/config.js';
 import { resolveAccount } from '../common/auth/resolver.js';
 import { logger } from '../utils/logger.js';
+import { getCurrentTenant } from '../tenant/context.js';
+import { assertAccountIdAllowed } from '../tenant/guard.js';
 const { machineIdSync } = nodeMachineId;
 
 const SCOPES = [
@@ -24,6 +26,8 @@ export async function getSearchConsoleClient(siteUrl?: string, accountId?: strin
   // 1. Resolve Account
   let account: AccountConfig;
   if (accountId) {
+    const tenant = getCurrentTenant();
+    if (tenant) assertAccountIdAllowed(tenant, accountId, 'google');
     const config = await loadConfig();
     account = config.accounts[accountId];
     if (!account) throw new Error(`Account ${accountId} not found.`);
@@ -84,6 +88,10 @@ export async function getSearchConsoleClient(siteUrl?: string, accountId?: strin
 
   // 4. Fallback to Service Account (Environment Variables) - Only if no specific account was resolved or it was a legacy fallback
   if (!accountId) {
+    if (getCurrentTenant()) {
+      throw new Error(`Authentication required for ${siteUrl || 'Google Search Console'}. Tenant mode does not allow environment credential fallback.`);
+    }
+
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       const auth = new google.auth.GoogleAuth({
         scopes: SCOPES

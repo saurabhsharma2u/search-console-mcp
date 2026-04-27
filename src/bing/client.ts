@@ -1,5 +1,8 @@
 import { resolveAccount } from '../common/auth/resolver.js';
 import { loadConfig } from '../common/auth/config.js';
+import { getCurrentTenant } from '../tenant/context.js';
+import { assertAccountIdAllowed } from '../tenant/guard.js';
+import { sanitizeForLog } from '../utils/redaction.js';
 
 export interface BingSite {
     Url: string;
@@ -116,7 +119,7 @@ export class BingClient {
         const response = await fetch(url.toString(), options);
         if (!response.ok) {
             const error = await response.text();
-            throw new Error(`Bing API error (${method}): ${response.status} ${error}`);
+            throw new Error(sanitizeForLog(`Bing API error (${method}): ${response.status} ${error}`));
         }
 
         const data = await response.json() as any;
@@ -215,6 +218,8 @@ export async function getBingClient(siteUrl?: string, accountId?: string): Promi
     let cacheKey: string;
 
     if (accountId) {
+        const tenant = getCurrentTenant();
+        if (tenant) assertAccountIdAllowed(tenant, accountId, 'bing');
         const config = await loadConfig();
         const account = config.accounts[accountId];
         if (!account || account.engine !== 'bing') {
@@ -228,6 +233,9 @@ export async function getBingClient(siteUrl?: string, accountId?: string): Promi
             apiKey = account.apiKey;
             cacheKey = account.id;
         } catch (error) {
+            if (getCurrentTenant()) {
+                throw error;
+            }
             // Fallback to environment variable for legacy support if resolution fails or no site specified
             apiKey = process.env.BING_API_KEY;
             cacheKey = 'env_fallback';

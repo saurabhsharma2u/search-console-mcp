@@ -60,6 +60,10 @@ import { registerPrompts } from "./prompts/index.js";
 import { jsonToCsv } from "./common/utils/csv.js";
 import { runDiagnostics } from "./common/diagnostics.js";
 import { logger } from "./utils/logger.js";
+import { installTenantGuard } from "./tenant/tool-guard.js";
+import { startHttpServer } from "./tenant/http.js";
+import { getCurrentTenant } from "./tenant/context.js";
+import { forbidden } from "./tenant/errors.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -78,6 +82,8 @@ const server = new McpServer({
   name: "search-console-mcp",
   version: version,
 });
+
+installTenantGuard(server);
 
 // Get Started Tool
 server.tool(
@@ -1556,13 +1562,38 @@ server.tool(
   "Submit URLs via IndexNow API (Bing, Yandex, etc.)",
   {
     host: z.string().describe("The host/domain where URLs are located (e.g., www.example.com)"),
-    key: z.string().describe("The IndexNow key generated for this host"),
+    key: z.string().optional().describe("The IndexNow key generated for this host. In tenant HTTP mode this is resolved server-side and must be omitted."),
     keyLocation: z.string().optional().describe("Optional URL of the key file (if not at host root)"),
     urlList: z.array(z.string()).describe("List of absolute URLs to notify IndexNow about")
   },
   async (options) => {
     try {
-      const result = await indexNow.submitIndexNow(options);
+      const tenant = getCurrentTenant();
+      let key = options.key;
+      let keyLocation = options.keyLocation;
+
+      if (tenant) {
+        if (options.key) {
+          throw forbidden("403 Forbidden: IndexNow key must be configured server-side for tenant calls");
+        }
+        const tenantKey = tenant.indexNowKeys[options.host.toLowerCase()];
+        if (!tenantKey) {
+          throw forbidden("403 Forbidden: IndexNow key is not configured for this tenant host");
+        }
+        key = tenantKey.key;
+        keyLocation = tenantKey.keyLocation;
+      }
+
+      if (!key) {
+        throw new Error("IndexNow key is required");
+      }
+
+      const result = await indexNow.submitIndexNow({
+        host: options.host,
+        key,
+        keyLocation,
+        urlList: options.urlList
+      });
       return {
         content: [{ type: "text", text: result }]
       };
@@ -2642,6 +2673,12 @@ async function main() {
     return;
   }
 
+  if (command === 'tenants' || command === 'tokens') {
+    const { main: tenantCliMain } = await import('./tenant/cli.js');
+    await tenantCliMain(process.argv.slice(2));
+    return;
+  }
+
   if (command === 'logout') {
     const { runLogout } = await import('./setup.js');
     await runLogout();
@@ -2657,6 +2694,11 @@ async function main() {
   if (command === 'diagnostics') {
     const results = await runDiagnostics();
     console.log(JSON.stringify(results, null, 2));
+    return;
+  }
+
+  if (command === 'serve-http' || process.env.MCP_TRANSPORT === 'http') {
+    await startHttpServer(server);
     return;
   }
 
