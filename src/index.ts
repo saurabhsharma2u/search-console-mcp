@@ -39,6 +39,13 @@ import { getSearchConsoleClient } from './google/client.js';
 import { getBingClient } from './bing/client.js';
 import { limitConcurrency } from './common/concurrency.js';
 import {
+  dimensionsDocs,
+  filtersDocs,
+  searchTypesDocs,
+  patternsDocs,
+  algorithmUpdatesDocs
+} from "./google/docs/index.js";
+import {
   bingApiDocs,
   indexNowDocs,
   dimensionsDocs as bingDimensionsDocs,
@@ -78,6 +85,7 @@ try {
   // Fallback for cases where package.json might not be accessible
 }
 
+export function createMcpServer() {
 const server = new McpServer({
   name: "search-console-mcp",
   version: version,
@@ -2195,8 +2203,6 @@ server.resource(
 );
 
 // Documentation Resources
-import { dimensionsDocs, filtersDocs, searchTypesDocs, patternsDocs, algorithmUpdatesDocs } from "./google/docs/index.js";
-
 server.resource(
   "docs-dimensions",
   "docs://dimensions",
@@ -2657,6 +2663,9 @@ server.tool(
   }
 );
 
+return server;
+}
+
 async function main() {
   const command = process.argv[2];
 
@@ -2698,7 +2707,7 @@ async function main() {
   }
 
   if (command === 'serve-http' || process.env.MCP_TRANSPORT === 'http') {
-    await startHttpServer(server);
+    await startHttpServer(createMcpServer);
     return;
   }
 
@@ -2748,6 +2757,7 @@ async function main() {
   }
 
   const transport = new StdioServerTransport();
+  const server = createMcpServer();
   await server.connect(transport);
 
   const googleStatus = hasGoogle ? `${colors.green}✔ Google${colors.reset}` : `${colors.red}✘ Google${colors.reset}`;

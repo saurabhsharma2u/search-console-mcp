@@ -7,16 +7,21 @@ import { resolveBearerToken } from './registry.js';
 import { isTenantRequired } from './context.js';
 import { sanitizeForLog } from '../utils/redaction.js';
 
-export async function startHttpServer(server: McpServer) {
+type ServerFactory = () => McpServer;
+
+interface SessionTransport {
+    server: McpServer;
+    transport: StreamableHTTPServerTransport;
+}
+
+export async function startHttpServer(serverOrFactory: McpServer | ServerFactory) {
     const host = process.env.MCP_BIND_HOST || '127.0.0.1';
     const port = Number(process.env.MCP_PORT || '3001');
     validateBindHost(host);
-
-    const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => randomUUID(),
-        enableJsonResponse: true
-    });
-    await server.connect(transport);
+    const createServerInstance: ServerFactory = typeof serverOrFactory === 'function'
+        ? serverOrFactory
+        : () => serverOrFactory;
+    const sessions = new Map<string, SessionTransport>();
 
     const httpServer = createServer(async (req, res) => {
         if (!req.url?.startsWith('/mcp')) {
@@ -31,6 +36,38 @@ export async function startHttpServer(server: McpServer) {
             }
 
             const body = await readJsonBody(req);
+            const sessionId = getHeader(req, 'mcp-session-id');
+            let session = sessionId ? sessions.get(sessionId) : undefined;
+
+            if (!session) {
+                if (sessionId || !isInitializeBody(body)) {
+                    sendJson(res, 400, {
+                        jsonrpc: '2.0',
+                        error: {
+                            code: -32000,
+                            message: 'Bad Request: No valid session ID provided'
+                        },
+                        id: null
+                    });
+                    return;
+                }
+
+                const server = createServerInstance();
+                const transport = new StreamableHTTPServerTransport({
+                    sessionIdGenerator: () => randomUUID(),
+                    enableJsonResponse: true,
+                    onsessioninitialized: id => {
+                        sessions.set(id, { server, transport });
+                    }
+                });
+                transport.onclose = () => {
+                    if (transport.sessionId) sessions.delete(transport.sessionId);
+                };
+                await server.connect(transport);
+                session = { server, transport };
+            }
+
+            const transport = session.transport;
             await transport.handleRequest(req as IncomingMessage & { auth?: AuthInfo }, res, body);
         } catch (error) {
             const status = (error as any).status || 500;
@@ -48,6 +85,15 @@ export async function startHttpServer(server: McpServer) {
     await new Promise<void>((resolve) => httpServer.listen(port, host, resolve));
     console.error(`Search Console MCP Streamable HTTP listening on http://${host}:${port}/mcp`);
     return httpServer;
+}
+
+function getHeader(req: IncomingMessage, name: string): string | undefined {
+    const value = req.headers[name.toLowerCase()];
+    return Array.isArray(value) ? value[0] : value;
+}
+
+function isInitializeBody(body: unknown): boolean {
+    return !!body && typeof body === 'object' && (body as any).method === 'initialize';
 }
 
 function authenticateRequest(req: IncomingMessage): AuthInfo | undefined {
