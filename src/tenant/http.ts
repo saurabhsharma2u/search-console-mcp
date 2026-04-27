@@ -1,4 +1,5 @@
 import { createServer, IncomingMessage, ServerResponse } from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
@@ -12,7 +13,7 @@ export async function startHttpServer(server: McpServer) {
     validateBindHost(host);
 
     const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: undefined,
+        sessionIdGenerator: () => randomUUID(),
         enableJsonResponse: true
     });
     await server.connect(transport);
