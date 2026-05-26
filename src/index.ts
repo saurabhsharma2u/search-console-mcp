@@ -71,6 +71,7 @@ import { installTenantGuard } from "./tenant/tool-guard.js";
 import { startHttpServer } from "./tenant/http.js";
 import { getCurrentTenant } from "./tenant/context.js";
 import { forbidden } from "./tenant/errors.js";
+import { getInspectionCacheStats } from "./google/tools/inspection-cache.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -733,13 +734,69 @@ server.tool(
     siteUrl: z.string().describe("The URL of the property"),
     inspectionUrl: z.string().describe("The fully-qualified URL to inspect"),
     languageCode: z.string().optional().describe("Language code for localized results (Google only)"),
+    cacheMode: z.enum(["read", "write", "read_write"]).optional().describe("Cache behavior for Google inspection (default: read_write)"),
+    maxAgeHours: z.number().optional().describe("Maximum cache age in hours (default: 24)"),
+    forceRefresh: z.boolean().optional().describe("Bypass fresh cache and call Google API (default: false)"),
     engine: z.enum(["google", "bing"]).optional().describe("The search engine (default: google)")
   },
-  async ({ siteUrl, inspectionUrl, languageCode, engine = "google" }) => {
+  async ({ siteUrl, inspectionUrl, languageCode, cacheMode, maxAgeHours, forceRefresh, engine = "google" }) => {
     try {
       const result = engine === "google"
-        ? await inspection.inspectUrl(siteUrl, inspectionUrl, languageCode)
+        ? await inspection.inspectUrlNormalized(siteUrl, inspectionUrl, languageCode, getCurrentTenant(), { cacheMode, maxAgeHours, forceRefresh })
         : await bingInspection.getUrlInfo(siteUrl, inspectionUrl);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_batch_inspect",
+  "Inspect multiple Google Search Console URLs with tenant-scoped cache and per-URL partial results",
+  {
+    siteUrl: z.string().describe("The Search Console property URL"),
+    urls: z.array(z.string()).describe("Fully-qualified URLs to inspect"),
+    cacheMode: z.enum(["read", "write", "read_write"]).optional().describe("Cache behavior (default: read_write)"),
+    maxAgeHours: z.number().optional().describe("Maximum cache age in hours (default: 24; use 12 for fresh_url flows)"),
+    forceRefresh: z.boolean().optional().describe("Bypass fresh cache and call Google API until per-run quota limit is reached"),
+    languageCode: z.string().optional().describe("Language code for localized Google results")
+  },
+  async ({ siteUrl, urls, cacheMode, maxAgeHours, forceRefresh, languageCode }) => {
+    try {
+      const tenant = getCurrentTenant();
+      const maxApiCallsPerRun = Number(process.env.MCP_INSPECTION_MAX_API_CALLS_PER_RUN || tenant?.limits.maxBatchUrls || 10);
+      const result = await inspection.inspectBatchWithCache(siteUrl, urls, tenant, {
+        cacheMode,
+        maxAgeHours,
+        forceRefresh,
+        languageCode,
+        maxApiCallsPerRun
+      });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_cache_stats",
+  "Return tenant-scoped Google URL Inspection cache usage statistics",
+  {
+    siteUrl: z.string().optional().describe("Optional Search Console property URL to filter stats"),
+    startDate: z.string().optional().describe("Optional start date (YYYY-MM-DD)"),
+    endDate: z.string().optional().describe("Optional end date (YYYY-MM-DD)")
+  },
+  async ({ siteUrl, startDate, endDate }) => {
+    try {
+      const tenant = getCurrentTenant();
+      if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection cache stats');
+      const result = getInspectionCacheStats(tenant, { siteUrl, startDate, endDate });
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
       };
