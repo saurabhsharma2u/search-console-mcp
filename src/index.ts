@@ -7,6 +7,7 @@ import * as sites from "./google/tools/sites.js";
 import * as sitemaps from "./google/tools/sitemaps.js";
 import * as analytics from "./google/tools/analytics.js";
 import * as inspection from "./google/tools/inspection.js";
+import * as inspectionJobs from "./google/tools/inspection-jobs.js";
 import * as pagespeed from "./google/tools/pagespeed.js";
 import * as seoInsights from "./google/tools/seo-insights.js";
 import * as seoPrimitives from "./common/tools/seo-primitives.js";
@@ -797,6 +798,103 @@ server.tool(
       const tenant = getCurrentTenant();
       if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection cache stats');
       const result = getInspectionCacheStats(tenant, { siteUrl, startDate, endDate });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_batch_job_start",
+  "Start an asynchronous tenant-scoped Google URL Inspection batch job",
+  {
+    siteUrl: z.string().describe("The Search Console property URL"),
+    urls: z.array(z.string()).describe("Fully-qualified URLs to inspect"),
+    cacheMode: z.enum(["read_write", "read_only", "bypass", "read", "write"]).optional().describe("Cache behavior: read_write, read_only, or bypass (default: read_write; read/write are deprecated aliases)"),
+    maxAgeHours: z.number().optional().describe("Maximum cache age in hours (default: 24; use 12 for fresh_url flows)"),
+    forceRefresh: z.boolean().optional().describe("Bypass fresh cache and call Google API until per-run quota limit is reached"),
+    languageCode: z.string().optional().describe("Language code for localized Google results")
+  },
+  async ({ siteUrl, urls, cacheMode, maxAgeHours, forceRefresh, languageCode }) => {
+    try {
+      const tenant = getCurrentTenant();
+      if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection batch jobs');
+      const maxApiCallsPerRun = Number(process.env.MCP_INSPECTION_MAX_API_CALLS_PER_RUN || tenant.limits.maxBatchUrls || 10);
+      const result = inspectionJobs.startInspectionBatchJob({
+        siteUrl,
+        urls,
+        tenant,
+        cacheMode,
+        maxAgeHours,
+        forceRefresh,
+        languageCode,
+        maxApiCallsPerRun
+      });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_batch_job_status",
+  "Return status for an asynchronous URL Inspection batch job",
+  {
+    jobId: z.string().describe("The job ID returned by inspection_batch_job_start")
+  },
+  async ({ jobId }) => {
+    try {
+      const tenant = getCurrentTenant();
+      if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection batch jobs');
+      const result = inspectionJobs.getInspectionBatchJobStatus(tenant, jobId);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_batch_job_results",
+  "Return partial or completed results for an asynchronous URL Inspection batch job",
+  {
+    jobId: z.string().describe("The job ID returned by inspection_batch_job_start"),
+    offset: z.number().optional().describe("Optional zero-based result offset for pagination"),
+    limit: z.number().optional().describe("Optional maximum number of results to return")
+  },
+  async ({ jobId, offset, limit }) => {
+    try {
+      const tenant = getCurrentTenant();
+      if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection batch jobs');
+      const result = inspectionJobs.getInspectionBatchJobResults(tenant, jobId, { offset, limit });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_batch_job_cancel",
+  "Cancel a queued or running asynchronous URL Inspection batch job",
+  {
+    jobId: z.string().describe("The job ID returned by inspection_batch_job_start")
+  },
+  async ({ jobId }) => {
+    try {
+      const tenant = getCurrentTenant();
+      if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection batch jobs');
+      const result = inspectionJobs.cancelInspectionBatchJob(tenant, jobId);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
       };

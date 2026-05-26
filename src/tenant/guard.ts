@@ -150,7 +150,9 @@ export function guardToolArguments(tenant: TenantContext, toolName: string, args
     if (args.feedpath) assertSitemapBelongsToAllowedSite(tenant, args.feedpath);
     if (args.sitemapUrl) assertSitemapBelongsToAllowedSite(tenant, args.sitemapUrl);
     if (Array.isArray(args.urlList)) assertBatchUrlsAllowed(tenant, args.urlList);
-    if (Array.isArray(args.urls) && toolName !== 'inspection_batch_inspect') assertBatchUrlsAllowed(tenant, args.urls);
+    if (Array.isArray(args.urls) && !['inspection_batch_inspect', 'inspection_batch_job_start'].includes(toolName)) {
+        assertBatchUrlsAllowed(tenant, args.urls);
+    }
 
     if (toolName === 'schema_validate' && args.type === 'url') {
         assertUrlBelongsToAllowedSite(tenant, args.data);
