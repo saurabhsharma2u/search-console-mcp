@@ -734,7 +734,7 @@ server.tool(
     siteUrl: z.string().describe("The URL of the property"),
     inspectionUrl: z.string().describe("The fully-qualified URL to inspect"),
     languageCode: z.string().optional().describe("Language code for localized results (Google only)"),
-    cacheMode: z.enum(["read", "write", "read_write"]).optional().describe("Cache behavior for Google inspection (default: read_write)"),
+    cacheMode: z.enum(["read_write", "read_only", "bypass", "read", "write"]).optional().describe("Cache behavior for Google inspection: read_write, read_only, or bypass (default: read_write; read/write are deprecated aliases)"),
     maxAgeHours: z.number().optional().describe("Maximum cache age in hours (default: 24)"),
     forceRefresh: z.boolean().optional().describe("Bypass fresh cache and call Google API (default: false)"),
     engine: z.enum(["google", "bing"]).optional().describe("The search engine (default: google)")
@@ -759,7 +759,7 @@ server.tool(
   {
     siteUrl: z.string().describe("The Search Console property URL"),
     urls: z.array(z.string()).describe("Fully-qualified URLs to inspect"),
-    cacheMode: z.enum(["read", "write", "read_write"]).optional().describe("Cache behavior (default: read_write)"),
+    cacheMode: z.enum(["read_write", "read_only", "bypass", "read", "write"]).optional().describe("Cache behavior: read_write, read_only, or bypass (default: read_write; read/write are deprecated aliases)"),
     maxAgeHours: z.number().optional().describe("Maximum cache age in hours (default: 24; use 12 for fresh_url flows)"),
     forceRefresh: z.boolean().optional().describe("Bypass fresh cache and call Google API until per-run quota limit is reached"),
     languageCode: z.string().optional().describe("Language code for localized Google results")

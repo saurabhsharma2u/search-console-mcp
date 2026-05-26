@@ -84,10 +84,14 @@ describe('Tenant guard', () => {
             'https://www.a.example/two',
             'https://www.a.example/three'
         ])).toThrow('batch URL limit exceeded');
-        expect(() => guardToolArguments(tenant, 'inspection_batch_inspect', {
+        expect(() => guardToolArguments(tenant, 'inspection_batch', {
             siteUrl: 'sc-domain:a.example',
             urls: ['https://www.a.example/one', 'https://b.example/two']
         })).toThrow('URL is not allowed');
+        expect(() => guardToolArguments(tenant, 'inspection_batch_inspect', {
+            siteUrl: 'sc-domain:a.example',
+            urls: ['https://www.a.example/one', 'https://b.example/two']
+        })).not.toThrow();
     });
 
     it('filters sites_list to tenant-authorized sites only', async () => {

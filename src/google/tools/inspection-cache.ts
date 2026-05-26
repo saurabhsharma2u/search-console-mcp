@@ -9,9 +9,10 @@ import { TenantContext } from '../../tenant/types.js';
 export const INSPECTION_TOOL_VERSION = 'gsc-url-inspection-v1';
 const DEFAULT_TTL_HOURS = 24;
 
-export type InspectionCacheMode = 'read' | 'write' | 'read_write';
+export type InspectionCacheMode = 'read_write' | 'read_only' | 'bypass' | 'read' | 'write';
 
 export interface NormalizedInspectionResult {
+  url: string;
   inspectionUrl: string;
   siteUrl: string;
   verdict?: string;
@@ -33,8 +34,10 @@ export interface InspectionCacheMetadata {
   apiCallMade: boolean;
   quotaUnitEstimate: number;
   cacheKey: string;
+  cachedAt?: string;
   fetchedAt?: string;
   expiresAt?: string;
+  cacheAgeHours?: number;
 }
 
 export interface CachedInspectionEntry {
@@ -89,6 +92,7 @@ export function normalizeInspectionResponse(
   const indexStatus = inspectionResult.indexStatusResult || {};
 
   return {
+    url: normalizeInspectionUrlForCache(inspectionUrl),
     inspectionUrl,
     siteUrl,
     verdict: indexStatus.verdict || undefined,
@@ -107,7 +111,7 @@ export function normalizeInspectionResponse(
 }
 
 export function createInspectionCacheKey(tenantId: string, siteUrl: string, inspectionUrl: string) {
-  return `${tenantId}:${siteUrl}:${inspectionUrl}:${INSPECTION_TOOL_VERSION}`;
+  return `${tenantId}:${siteUrl}:${normalizeInspectionUrlForCache(inspectionUrl)}:${INSPECTION_TOOL_VERSION}`;
 }
 
 export function createInspectionCacheHash(cacheKey: string) {
@@ -145,6 +149,25 @@ export function readFreshInspectionCache(
   }
 
   return undefined;
+}
+
+export function normalizeInspectionUrlForCache(inspectionUrl: string) {
+  try {
+    const parsed = new URL(inspectionUrl);
+    parsed.protocol = parsed.protocol.toLowerCase();
+    parsed.hostname = parsed.hostname.toLowerCase();
+    parsed.hash = '';
+    return parsed.href;
+  } catch {
+    return inspectionUrl.trim();
+  }
+}
+
+export function calculateCacheAgeHours(cachedAt?: string, now = Date.now()) {
+  if (!cachedAt) return undefined;
+  const cachedAtMs = Date.parse(cachedAt);
+  if (!Number.isFinite(cachedAtMs)) return undefined;
+  return Math.max(0, (now - cachedAtMs) / (60 * 60 * 1000));
 }
 
 export function writeInspectionCacheEntry(
@@ -225,7 +248,7 @@ export function getInspectionCacheStats(
     stats.totalRequests++;
     if (event.cacheHit) stats.cacheHits++;
     if (event.apiCallMade) stats.apiCalls++;
-    if (event.status === 'error' || event.status === 'quota_limited') stats.errors++;
+    if (['error', 'provider_error', 'quota_limited', 'forbidden_url', 'invalid_url'].includes(event.status)) stats.errors++;
     stats.quotaUnitEstimate += event.quotaUnitEstimate || 0;
   }
 

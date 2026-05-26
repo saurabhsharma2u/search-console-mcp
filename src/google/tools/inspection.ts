@@ -2,19 +2,23 @@ import { getSearchConsoleClient } from '../client.js';
 import { searchconsole_v1 } from 'googleapis';
 import { limitConcurrency } from '../../common/concurrency.js';
 import { TenantContext } from '../../tenant/types.js';
+import { isUrlAllowedBySites } from '../../tenant/guard.js';
 import { sanitizeForLog } from '../../utils/redaction.js';
 import {
   appendInspectionCacheEvent,
+  calculateCacheAgeHours,
   InspectionCacheMetadata,
   InspectionCacheMode,
   InspectionResultWithMetadata,
   normalizeInspectionResponse,
+  normalizeInspectionUrlForCache,
   readFreshInspectionCache,
   writeInspectionCacheEntry,
   createInspectionCacheKey
 } from './inspection-cache.js';
 
-const DEFAULT_CACHE_MODE: InspectionCacheMode = 'read_write';
+type EffectiveCacheMode = 'read_write' | 'read_only' | 'bypass' | 'write';
+const DEFAULT_CACHE_MODE: EffectiveCacheMode = 'read_write';
 const DEFAULT_MAX_AGE_HOURS = 24;
 
 /**
@@ -53,20 +57,25 @@ export async function inspectUrlNormalized(
   } = {}
 ): Promise<InspectionResultWithMetadata> {
   const tenantId = tenant?.tenantId || 'default';
-  const cacheMode = options.cacheMode || DEFAULT_CACHE_MODE;
+  const cacheMode = normalizeCacheMode(options.cacheMode);
   const maxAgeHours = options.maxAgeHours ?? DEFAULT_MAX_AGE_HOURS;
   const cacheKey = createInspectionCacheKey(tenantId, siteUrl, inspectionUrl);
+  const shouldReadCache = cacheMode === 'read_write' || cacheMode === 'read_only';
+  const shouldWriteCache = cacheMode === 'read_write' || cacheMode === 'write' || options.forceRefresh === true;
 
-  if (!options.forceRefresh && (cacheMode === 'read' || cacheMode === 'read_write')) {
+  if (!options.forceRefresh && shouldReadCache) {
     const cached = readFreshInspectionCache(tenantId, siteUrl, inspectionUrl, maxAgeHours);
     if (cached?.entry.normalized) {
+      const cachedAt = cached.entry.fetched_at;
       const metadata: InspectionCacheMetadata = {
         cacheHit: true,
         apiCallMade: false,
         quotaUnitEstimate: 0,
         cacheKey,
+        cachedAt,
         fetchedAt: cached.entry.fetched_at,
-        expiresAt: cached.entry.expires_at
+        expiresAt: cached.entry.expires_at,
+        cacheAgeHours: calculateCacheAgeHours(cachedAt)
       };
       appendInspectionCacheEvent({
         timestamp: new Date().toISOString(),
@@ -83,25 +92,25 @@ export async function inspectUrlNormalized(
     }
   }
 
-  if (cacheMode === 'read') {
+  if (cacheMode === 'read_only') {
     appendInspectionCacheEvent({
       timestamp: new Date().toISOString(),
       tenant_id: tenantId,
       siteUrl,
       inspectionUrl,
       tool_version: 'gsc-url-inspection-v1',
-      status: 'cache_miss',
+      status: 'provider_error',
       cacheHit: false,
       apiCallMade: false,
       quotaUnitEstimate: 0
     });
-    throw cacheMissError('Cache miss for URL Inspection result');
+    throw cacheMissError('No fresh cache entry and cacheMode is read_only');
   }
 
   try {
     const raw = await inspectUrl(siteUrl, inspectionUrl, languageCode);
     const normalized = normalizeInspectionResponse(siteUrl, inspectionUrl, raw);
-    const entry = cacheMode === 'write' || cacheMode === 'read_write'
+    const entry = shouldWriteCache
       ? writeInspectionCacheEntry(tenantId, siteUrl, inspectionUrl, raw, normalized, {
         ttlHours: maxAgeHours,
         apiStatus: 'ok'
@@ -113,8 +122,10 @@ export async function inspectUrlNormalized(
       apiCallMade: true,
       quotaUnitEstimate: 1,
       cacheKey,
+      cachedAt: entry?.fetched_at,
       fetchedAt: entry?.fetched_at || new Date().toISOString(),
-      expiresAt: entry?.expires_at
+      expiresAt: entry?.expires_at,
+      cacheAgeHours: entry ? 0 : undefined
     };
     appendInspectionCacheEvent({
       timestamp: new Date().toISOString(),
@@ -133,7 +144,7 @@ export async function inspectUrlNormalized(
     const err = error as any;
     const errorCode = String(err.code || err.status || err.reason || 'UNKNOWN');
     const errorMessage = sanitizeForLog(err.message || 'URL Inspection API call failed');
-    if (cacheMode === 'write' || cacheMode === 'read_write') {
+    if (shouldWriteCache) {
       writeInspectionCacheEntry(tenantId, siteUrl, inspectionUrl, undefined, undefined, {
         ttlHours: maxAgeHours,
         apiStatus: 'error',
@@ -193,24 +204,82 @@ export async function inspectBatchWithCache(
   } = {}
 ) {
   const tenantId = tenant?.tenantId || 'default';
-  const cacheMode = options.cacheMode || DEFAULT_CACHE_MODE;
+  const cacheMode = normalizeCacheMode(options.cacheMode);
   const maxAgeHours = options.maxAgeHours ?? DEFAULT_MAX_AGE_HOURS;
   const maxApiCallsPerRun = options.maxApiCallsPerRun ?? tenant?.limits.maxBatchUrls ?? 10;
+  const shouldReadCache = cacheMode === 'read_write' || cacheMode === 'read_only';
   let apiCallsMade = 0;
   let cacheHits = 0;
   let errors = 0;
   let quotaLimited = 0;
+  let invalidUrls = 0;
+  let forbiddenUrls = 0;
 
   const results = [];
 
-  for (const url of urls) {
+  for (const batch of chunkArray(urls, Number(process.env.MCP_INSPECTION_CHUNK_SIZE || 25))) {
+    for (const url of batch) {
     try {
-      const cached = !options.forceRefresh && (cacheMode === 'read' || cacheMode === 'read_write')
+      const normalizedUrl = normalizeInspectionUrlForCache(url);
+      if (!isInspectableUrl(url)) {
+        invalidUrls++;
+        results.push({
+          url,
+          inspectionUrl: url,
+          siteUrl,
+          status: 'invalid_url',
+          errorCode: 'INVALID_URL',
+          errorMessage: 'URL must be a valid http or https URL',
+          metadata: emptyMetadata(tenantId, siteUrl, url)
+        });
+        appendInspectionCacheEvent({
+          timestamp: new Date().toISOString(),
+          tenant_id: tenantId,
+          siteUrl,
+          inspectionUrl: url,
+          tool_version: 'gsc-url-inspection-v1',
+          status: 'invalid_url',
+          cacheHit: false,
+          apiCallMade: false,
+          quotaUnitEstimate: 0,
+          error_code: 'INVALID_URL'
+        });
+        continue;
+      }
+
+      if (tenant && !isUrlAllowedForTenant(tenant, url)) {
+        forbiddenUrls++;
+        results.push({
+          url: normalizedUrl,
+          inspectionUrl: url,
+          siteUrl,
+          status: 'forbidden_url',
+          errorCode: 'FORBIDDEN_URL',
+          errorMessage: 'URL is not allowed for this tenant',
+          metadata: emptyMetadata(tenantId, siteUrl, url)
+        });
+        appendInspectionCacheEvent({
+          timestamp: new Date().toISOString(),
+          tenant_id: tenantId,
+          siteUrl,
+          inspectionUrl: url,
+          tool_version: 'gsc-url-inspection-v1',
+          status: 'forbidden_url',
+          cacheHit: false,
+          apiCallMade: false,
+          quotaUnitEstimate: 0,
+          error_code: 'FORBIDDEN_URL'
+        });
+        continue;
+      }
+
+      const cached = !options.forceRefresh && shouldReadCache
         ? readFreshInspectionCache(tenantId, siteUrl, url, maxAgeHours)
         : undefined;
 
       if (cached?.entry.normalized) {
         cacheHits++;
+        const cachedAt = cached.entry.fetched_at;
         appendInspectionCacheEvent({
           timestamp: new Date().toISOString(),
           tenant_id: tenantId,
@@ -223,25 +292,30 @@ export async function inspectBatchWithCache(
           quotaUnitEstimate: 0
         });
         results.push({
-          status: 'ok',
+          status: 'cache_hit',
           ...cached.entry.normalized,
           metadata: {
             cacheHit: true,
             apiCallMade: false,
             quotaUnitEstimate: 0,
             cacheKey: createInspectionCacheKey(tenantId, siteUrl, url),
+            cachedAt,
             fetchedAt: cached.entry.fetched_at,
-            expiresAt: cached.entry.expires_at
+            expiresAt: cached.entry.expires_at,
+            cacheAgeHours: calculateCacheAgeHours(cachedAt)
           }
         });
         continue;
       }
 
-      if (cacheMode === 'read') {
+      if (cacheMode === 'read_only') {
         results.push({
+          url: normalizedUrl,
           inspectionUrl: url,
           siteUrl,
-          status: 'cache_miss',
+          status: 'provider_error',
+          errorCode: 'CACHE_MISS_READ_ONLY',
+          errorMessage: 'No fresh cache entry and cacheMode is read_only',
           metadata: {
             cacheHit: false,
             apiCallMade: false,
@@ -255,7 +329,7 @@ export async function inspectBatchWithCache(
           siteUrl,
           inspectionUrl: url,
           tool_version: 'gsc-url-inspection-v1',
-          status: 'cache_miss',
+          status: 'provider_error',
           cacheHit: false,
           apiCallMade: false,
           quotaUnitEstimate: 0
@@ -266,6 +340,7 @@ export async function inspectBatchWithCache(
       if (apiCallsMade >= maxApiCallsPerRun) {
         quotaLimited++;
         results.push({
+          url: normalizedUrl,
           inspectionUrl: url,
           siteUrl,
           status: 'quota_limited',
@@ -292,17 +367,18 @@ export async function inspectBatchWithCache(
 
       apiCallsMade++;
       const result = await inspectUrlNormalized(siteUrl, url, options.languageCode, tenant, {
-        cacheMode: cacheMode === 'write' ? 'write' : 'read_write',
+        cacheMode: cacheMode === 'bypass' ? 'bypass' : cacheMode === 'write' ? 'write' : 'read_write',
         maxAgeHours,
-        forceRefresh: true
+        forceRefresh: cacheMode === 'bypass' ? options.forceRefresh === true : true
       });
       results.push({ status: 'ok', ...result });
     } catch (error) {
       errors++;
       results.push({
+        url,
         inspectionUrl: url,
         siteUrl,
-        status: 'error',
+        status: 'provider_error',
         errorCode: String((error as any).code || (error as any).status || 'ERROR'),
         errorMessage: sanitizeForLog((error as Error).message || 'URL Inspection failed'),
         metadata: {
@@ -313,6 +389,7 @@ export async function inspectBatchWithCache(
         }
       });
     }
+  }
   }
 
   return {
@@ -326,11 +403,54 @@ export async function inspectBatchWithCache(
       cacheHits,
       apiCallsMade,
       errors,
+      invalidUrls,
+      forbiddenUrls,
       quotaLimited,
       quotaUnitEstimate: apiCallsMade
     },
     results
   };
+}
+
+function normalizeCacheMode(cacheMode?: InspectionCacheMode): EffectiveCacheMode {
+  if (cacheMode === 'read') return 'read_only';
+  if (cacheMode === 'write') return 'write';
+  if (cacheMode === 'read_only' || cacheMode === 'bypass' || cacheMode === 'read_write') return cacheMode;
+  return DEFAULT_CACHE_MODE;
+}
+
+function isInspectableUrl(url: string) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
+function isUrlAllowedForTenant(tenant: TenantContext, url: string) {
+  return isUrlAllowedBySites(url, [
+    ...(tenant.engines.google?.allowedSites || []),
+    ...(tenant.engines.bing?.allowedSites || [])
+  ]);
+}
+
+function emptyMetadata(tenantId: string, siteUrl: string, url: string): InspectionCacheMetadata {
+  return {
+    cacheHit: false,
+    apiCallMade: false,
+    quotaUnitEstimate: 0,
+    cacheKey: createInspectionCacheKey(tenantId, siteUrl, url)
+  };
+}
+
+function chunkArray<T>(items: T[], size: number): T[][] {
+  const chunkSize = Math.max(1, Math.floor(size));
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += chunkSize) {
+    chunks.push(items.slice(index, index + chunkSize));
+  }
+  return chunks;
 }
 
 function cacheMissError(message: string) {

@@ -85,6 +85,7 @@ describe('URL Inspection cache layer', () => {
         const normalized = normalizeInspectionResponse('sc-domain:a.example', 'https://a.example/page', rawInspection as any);
 
         expect(normalized).toMatchObject({
+            url: 'https://a.example/page',
             inspectionUrl: 'https://a.example/page',
             siteUrl: 'sc-domain:a.example',
             verdict: 'PASS',
@@ -108,6 +109,8 @@ describe('URL Inspection cache layer', () => {
 
         const second = await inspectUrlNormalized('sc-domain:a.example', 'https://a.example/page', 'en-US', tenant);
         expect(second.metadata).toMatchObject({ cacheHit: true, apiCallMade: false, quotaUnitEstimate: 0 });
+        expect(second.metadata.cachedAt).toBeTruthy();
+        expect(typeof second.metadata.cacheAgeHours).toBe('number');
         expect(inspectMock).toHaveBeenCalledTimes(1);
 
         const cached = readFreshInspectionCache('tenant-a', 'sc-domain:a.example', 'https://a.example/page');
@@ -135,7 +138,56 @@ describe('URL Inspection cache layer', () => {
             quotaLimited: 1,
             quotaUnitEstimate: 2
         });
-        expect(result.results.map((row: any) => row.status)).toEqual(['ok', 'error', 'quota_limited']);
+        expect(result.results.map((row: any) => row.status)).toEqual(['ok', 'provider_error', 'quota_limited']);
+    });
+
+    it('returns per-URL invalid and forbidden statuses without calling Google', async () => {
+        const result = await inspectBatchWithCache('sc-domain:a.example', [
+            'not-a-url',
+            'https://b.example/page',
+            'https://a.example/page'
+        ], tenant, {
+            cacheMode: 'bypass',
+            maxApiCallsPerRun: 5
+        });
+
+        expect(result.summary).toMatchObject({
+            requested: 3,
+            apiCallsMade: 1,
+            invalidUrls: 1,
+            forbiddenUrls: 1
+        });
+        expect(result.results.map((row: any) => row.status)).toEqual(['invalid_url', 'forbidden_url', 'ok']);
+        expect(inspectMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('supports read_only cache mode without provider calls on cache miss', async () => {
+        const result = await inspectBatchWithCache('sc-domain:a.example', [
+            'https://a.example/missing'
+        ], tenant, {
+            cacheMode: 'read_only'
+        });
+
+        expect(result.results[0]).toMatchObject({
+            status: 'provider_error',
+            errorCode: 'CACHE_MISS_READ_ONLY',
+            metadata: {
+                cacheHit: false,
+                apiCallMade: false,
+                quotaUnitEstimate: 0
+            }
+        });
+        expect(inspectMock).not.toHaveBeenCalled();
+    });
+
+    it('bypasses cache without writing unless forceRefresh requests a fresh write', async () => {
+        await inspectUrlNormalized('sc-domain:a.example', 'https://a.example/bypass', 'en-US', tenant, { cacheMode: 'bypass' });
+        await inspectUrlNormalized('sc-domain:a.example', 'https://a.example/bypass', 'en-US', tenant, { cacheMode: 'bypass' });
+        expect(inspectMock).toHaveBeenCalledTimes(2);
+
+        await inspectUrlNormalized('sc-domain:a.example', 'https://a.example/refresh', 'en-US', tenant, { cacheMode: 'bypass', forceRefresh: true });
+        const cached = readFreshInspectionCache('tenant-a', 'sc-domain:a.example', 'https://a.example/refresh');
+        expect(cached?.entry.normalized?.coverageState).toBe('Submitted and indexed');
     });
 
     it('reports cache stats for Paperclip consumers', async () => {
