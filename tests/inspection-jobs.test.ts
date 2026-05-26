@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { TenantContext } from '../src/tenant/types.js';
@@ -126,9 +126,32 @@ describe('URL Inspection async jobs', () => {
         await waitForJob(started.jobId, 'completed');
 
         const page = getInspectionBatchJobResults(tenant, started.jobId, { offset: 1, limit: 1 });
-        expect(page.pagination).toMatchObject({ offset: 1, limit: 1, returned: 1, total: 2 });
+        expect(page.pagination).toMatchObject({ offset: 1, limit: 1, returned: 1, total: 2, hasMore: false });
         expect(page.results).toHaveLength(1);
+        const capped = getInspectionBatchJobResults(tenant, started.jobId, { limit: 5000 });
+        expect(capped.pagination.limit).toBe(1000);
         expect(() => getInspectionBatchJobStatus(otherTenant, started.jobId)).toThrow('job is not allowed');
+    });
+
+    it('uses a bounded default results page for large jobs', async () => {
+        const urls = Array.from({ length: 105 }, (_, index) => `not-a-url-${index}`);
+        const started = startInspectionBatchJob({
+            siteUrl: 'sc-domain:a.example',
+            urls,
+            tenant,
+            cacheMode: 'read_only',
+            maxApiCallsPerRun: 0
+        });
+        await waitForJob(started.jobId, 'completed');
+
+        const firstPage = getInspectionBatchJobResults(tenant, started.jobId);
+        expect(firstPage.pagination).toMatchObject({
+            offset: 0,
+            limit: 100,
+            returned: 100,
+            total: 105,
+            hasMore: true
+        });
     });
 
     it('cancels queued jobs before provider calls start', async () => {
@@ -147,6 +170,32 @@ describe('URL Inspection async jobs', () => {
         expect(status.status).toBe('cancelled');
         expect(inspectMock).not.toHaveBeenCalled();
     });
+
+    it('cleans up expired terminal jobs before new jobs are started', async () => {
+        const started = startInspectionBatchJob({
+            siteUrl: 'sc-domain:a.example',
+            urls: ['not-a-url'],
+            tenant,
+            cacheMode: 'read_only',
+            maxApiCallsPerRun: 0
+        });
+        await waitForJob(started.jobId, 'completed');
+
+        const jobFile = findJobFile(started.jobId);
+        const job = JSON.parse(readFileSync(jobFile, 'utf8'));
+        job.expiresAt = '2000-01-01T00:00:00.000Z';
+        writeFileSync(jobFile, `${JSON.stringify(job, null, 2)}\n`);
+
+        startInspectionBatchJob({
+            siteUrl: 'sc-domain:a.example',
+            urls: [],
+            tenant,
+            cacheMode: 'read_only',
+            maxApiCallsPerRun: 0
+        });
+
+        expect(() => getInspectionBatchJobStatus(tenant, started.jobId)).toThrow('not found');
+    });
 });
 
 async function waitForJob(jobId: string, expectedStatus: string) {
@@ -156,4 +205,17 @@ async function waitForJob(jobId: string, expectedStatus: string) {
         await new Promise(resolve => setTimeout(resolve, 10));
     }
     throw new Error(`Job ${jobId} did not reach ${expectedStatus}`);
+}
+
+function findJobFile(jobId: string) {
+    const files = readdirSync(join(tempInspectionDir(), 'jobs'));
+    const jobFile = files.find(file => file === `${jobId}.json`);
+    if (!jobFile) throw new Error(`Job file not found for ${jobId}`);
+    return join(tempInspectionDir(), 'jobs', jobFile);
+}
+
+function tempInspectionDir() {
+    const dir = process.env.MCP_INSPECTION_CACHE_DIR;
+    if (!dir) throw new Error('MCP_INSPECTION_CACHE_DIR is not set');
+    return dir;
 }

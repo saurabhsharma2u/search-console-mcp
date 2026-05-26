@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sanitizeForLog } from '../../utils/redaction.js';
 import { forbidden, notFound } from '../../tenant/errors.js';
 import { TenantContext } from '../../tenant/types.js';
+import { assertGoogleSiteAllowed } from '../../tenant/guard.js';
 import { getInspectionCacheDir, InspectionCacheMode } from './inspection-cache.js';
 import { inspectBatchWithCache } from './inspection.js';
 
@@ -18,6 +19,7 @@ export interface InspectionBatchJob {
   updatedAt: string;
   startedAt?: string;
   completedAt?: string;
+  expiresAt: string;
   requestedUrls: number;
   processedUrls: number;
   cacheMode: InspectionCacheMode;
@@ -64,9 +66,16 @@ export interface StartInspectionBatchJobInput {
 
 const DEFAULT_MAX_AGE_HOURS = 24;
 const DEFAULT_CACHE_MODE: InspectionCacheMode = 'read_write';
+const DEFAULT_JOB_RETENTION_HOURS = 24;
+const DEFAULT_RESULTS_LIMIT = 100;
+const DEFAULT_MAX_RESULTS_LIMIT = 1000;
 
 export function startInspectionBatchJob(input: StartInspectionBatchJobInput) {
+  cleanupExpiredInspectionJobs();
+  assertGoogleSiteAllowed(input.tenant, input.siteUrl);
+
   const now = new Date().toISOString();
+  const expiresAt = new Date(Date.parse(now) + jobRetentionHours() * 60 * 60 * 1000).toISOString();
   const job: InspectionBatchJob = {
     jobId: randomUUID(),
     tenantId: input.tenant.tenantId,
@@ -74,6 +83,7 @@ export function startInspectionBatchJob(input: StartInspectionBatchJobInput) {
     status: 'queued',
     createdAt: now,
     updatedAt: now,
+    expiresAt,
     requestedUrls: input.urls.length,
     processedUrls: 0,
     cacheMode: input.cacheMode || DEFAULT_CACHE_MODE,
@@ -95,7 +105,7 @@ export function startInspectionBatchJob(input: StartInspectionBatchJobInput) {
     results: []
   });
 
-  void runJobSoon(job.jobId, input.tenant);
+  void runJobSoon(job.jobId, tenantForWorker(input.tenant));
 
   return {
     jobId: job.jobId,
@@ -106,11 +116,13 @@ export function startInspectionBatchJob(input: StartInspectionBatchJobInput) {
     maxApiCallsPerRun: job.maxApiCallsPerRun,
     cacheMode: job.cacheMode,
     maxAgeHours: job.maxAgeHours,
-    createdAt: job.createdAt
+    createdAt: job.createdAt,
+    expiresAt: job.expiresAt
   };
 }
 
 export function getInspectionBatchJobStatus(tenant: TenantContext, jobId: string) {
+  cleanupExpiredInspectionJobs();
   const job = readAuthorizedJob(tenant, jobId);
   return {
     jobId: job.jobId,
@@ -121,6 +133,7 @@ export function getInspectionBatchJobStatus(tenant: TenantContext, jobId: string
     updatedAt: job.updatedAt,
     startedAt: job.startedAt,
     completedAt: job.completedAt,
+    expiresAt: job.expiresAt,
     requestedUrls: job.requestedUrls,
     processedUrls: job.processedUrls,
     cacheMode: job.cacheMode,
@@ -138,10 +151,11 @@ export function getInspectionBatchJobResults(
   jobId: string,
   options: { offset?: number; limit?: number } = {}
 ) {
+  cleanupExpiredInspectionJobs();
   const job = readAuthorizedJob(tenant, jobId);
   const stored = readJobResults(jobId);
   const offset = Math.max(0, options.offset ?? 0);
-  const limit = options.limit === undefined ? stored.results.length : Math.max(0, options.limit);
+  const limit = normalizeResultsLimit(options.limit);
   const results = stored.results.slice(offset, offset + limit);
   return {
     jobId: job.jobId,
@@ -153,13 +167,15 @@ export function getInspectionBatchJobResults(
       offset,
       limit,
       returned: results.length,
-      total: stored.results.length
+      total: stored.results.length,
+      hasMore: offset + results.length < stored.results.length
     },
     results
   };
 }
 
 export function cancelInspectionBatchJob(tenant: TenantContext, jobId: string) {
+  cleanupExpiredInspectionJobs();
   const job = readAuthorizedJob(tenant, jobId);
   if (job.status === 'completed' || job.status === 'failed' || job.status === 'cancelled') {
     return {
@@ -309,6 +325,26 @@ function writeJobResults(results: InspectionBatchJobResults) {
   writeFileSync(resultsPath(results.jobId), `${JSON.stringify(results, null, 2)}\n`, { mode: 0o600 });
 }
 
+export function cleanupExpiredInspectionJobs(now = Date.now()) {
+  const dir = jobsDir();
+  if (!existsSync(dir)) return;
+
+  for (const file of readdirSync(dir)) {
+    if (!file.endsWith('.json') || file.endsWith('.input.json') || file.endsWith('.results.json')) continue;
+    const jobId = file.slice(0, -'.json'.length);
+    try {
+      const job = readJob(jobId);
+      if (!isTerminalJob(job)) continue;
+      const expiresAt = Date.parse(job.expiresAt || '');
+      if (Number.isFinite(expiresAt) && now >= expiresAt) {
+        deleteJobFiles(job.jobId);
+      }
+    } catch {
+      continue;
+    }
+  }
+}
+
 function jobPath(jobId: string) {
   return join(jobsDir(), `${safeJobId(jobId)}.json`);
 }
@@ -329,6 +365,16 @@ function ensureJobDir() {
   mkdirSync(jobsDir(), { recursive: true, mode: 0o700 });
 }
 
+function deleteJobFiles(jobId: string) {
+  for (const path of [jobPath(jobId), inputPath(jobId), resultsPath(jobId)]) {
+    try {
+      if (existsSync(path)) unlinkSync(path);
+    } catch {
+      // Best-effort cleanup should never affect active tool calls.
+    }
+  }
+}
+
 function safeJobId(jobId: string) {
   if (!/^[a-zA-Z0-9_-]+$/.test(jobId)) {
     throw notFound('404 Not Found: inspection batch job was not found');
@@ -347,6 +393,28 @@ function emptySummary(requested: number): InspectionBatchJobSummary {
     forbiddenUrls: 0,
     quotaLimited: 0,
     quotaUnitEstimate: 0
+  };
+}
+
+function normalizeResultsLimit(limit?: number) {
+  const maxLimit = Math.max(1, Number(process.env.MCP_INSPECTION_JOB_MAX_RESULTS_LIMIT || DEFAULT_MAX_RESULTS_LIMIT));
+  const requested = limit === undefined ? DEFAULT_RESULTS_LIMIT : Math.max(0, Math.floor(limit));
+  return Math.min(requested, maxLimit);
+}
+
+function jobRetentionHours() {
+  const configured = Number(process.env.MCP_INSPECTION_JOB_RETENTION_HOURS || DEFAULT_JOB_RETENTION_HOURS);
+  return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_JOB_RETENTION_HOURS;
+}
+
+function isTerminalJob(job: InspectionBatchJob) {
+  return job.status === 'completed' || job.status === 'cancelled' || job.status === 'failed';
+}
+
+function tenantForWorker(tenant: TenantContext): TenantContext {
+  return {
+    ...tenant,
+    indexNowKeys: {}
   };
 }
 
