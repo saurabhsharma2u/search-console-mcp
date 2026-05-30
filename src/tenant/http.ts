@@ -12,6 +12,8 @@ type ServerFactory = () => McpServer;
 interface SessionTransport {
     server: McpServer;
     transport: StreamableHTTPServerTransport;
+    lastSeenAt: number;
+    activeRequests: number;
 }
 
 export async function startHttpServer(serverOrFactory: McpServer | ServerFactory) {
@@ -22,6 +24,7 @@ export async function startHttpServer(serverOrFactory: McpServer | ServerFactory
         ? serverOrFactory
         : () => serverOrFactory;
     const sessions = new Map<string, SessionTransport>();
+    const sessionTtlMs = getSessionTtlMs();
 
     const httpServer = createServer(async (req, res) => {
         if (!req.url?.startsWith('/mcp')) {
@@ -30,6 +33,7 @@ export async function startHttpServer(serverOrFactory: McpServer | ServerFactory
         }
 
         try {
+            await cleanupExpiredSessions(sessions, sessionTtlMs);
             const auth = authenticateRequest(req);
             if (auth) {
                 (req as IncomingMessage & { auth?: AuthInfo }).auth = auth;
@@ -57,18 +61,32 @@ export async function startHttpServer(serverOrFactory: McpServer | ServerFactory
                     sessionIdGenerator: () => randomUUID(),
                     enableJsonResponse: true,
                     onsessioninitialized: id => {
-                        sessions.set(id, { server, transport });
+                        sessions.set(id, { server, transport, lastSeenAt: Date.now(), activeRequests: 0 });
                     }
                 });
                 transport.onclose = () => {
                     if (transport.sessionId) sessions.delete(transport.sessionId);
                 };
                 await server.connect(transport);
-                session = { server, transport };
+                session = { server, transport, lastSeenAt: Date.now(), activeRequests: 0 };
             }
 
             const transport = session.transport;
-            await transport.handleRequest(req as IncomingMessage & { auth?: AuthInfo }, res, body);
+            session.lastSeenAt = Date.now();
+            session.activeRequests += 1;
+            try {
+                await transport.handleRequest(req as IncomingMessage & { auth?: AuthInfo }, res, body);
+            } finally {
+                session.activeRequests = Math.max(0, session.activeRequests - 1);
+                session.lastSeenAt = Date.now();
+                if (transport.sessionId) {
+                    const stored = sessions.get(transport.sessionId);
+                    if (stored) {
+                        stored.lastSeenAt = session.lastSeenAt;
+                        stored.activeRequests = session.activeRequests;
+                    }
+                }
+            }
         } catch (error) {
             const status = (error as any).status || 500;
             sendJson(res, status, {
@@ -85,6 +103,26 @@ export async function startHttpServer(serverOrFactory: McpServer | ServerFactory
     await new Promise<void>((resolve) => httpServer.listen(port, host, resolve));
     console.error(`Search Console MCP Streamable HTTP listening on http://${host}:${port}/mcp`);
     return httpServer;
+}
+
+async function cleanupExpiredSessions(sessions: Map<string, SessionTransport>, sessionTtlMs: number) {
+    const now = Date.now();
+    for (const [id, session] of sessions) {
+        if (session.activeRequests > 0) continue;
+        if (now - session.lastSeenAt <= sessionTtlMs) continue;
+        sessions.delete(id);
+        try {
+            await session.transport.close();
+        } catch {
+            // Best-effort cleanup; a failed close should not break unrelated requests.
+        }
+    }
+}
+
+function getSessionTtlMs() {
+    const fallback = 30 * 60 * 1000;
+    const configured = Number(process.env.MCP_HTTP_SESSION_TTL_MS || fallback);
+    return Number.isFinite(configured) && configured > 0 ? configured : fallback;
 }
 
 function getHeader(req: IncomingMessage, name: string): string | undefined {

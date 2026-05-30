@@ -26,7 +26,7 @@ describe('Tenant HTTP integration', () => {
         tempDir = undefined;
     });
 
-    async function startTenantServer(options: { useFactory?: boolean } = {}) {
+    async function startTenantServer(options: { useFactory?: boolean; sessionTtlMs?: string } = {}) {
         tempDir = mkdtempSync(join(tmpdir(), 'scmcp-http-'));
         const tenantsDir = join(tempDir, 'tenants');
         const tokensDir = join(tempDir, 'tokens');
@@ -61,6 +61,7 @@ describe('Tenant HTTP integration', () => {
         process.env.MCP_TOKEN_REGISTRY = tokensPath;
         process.env.MCP_BIND_HOST = '127.0.0.1';
         process.env.MCP_PORT = '0';
+        if (options.sessionTtlMs) process.env.MCP_HTTP_SESSION_TTL_MS = options.sessionTtlMs;
 
         const createServer = () => {
             const server = new McpServer({ name: 'tenant-http-test', version: '1.0.0' });
@@ -106,6 +107,24 @@ describe('Tenant HTTP integration', () => {
         });
     }
 
+    async function toolsList(url: URL, token: string, sessionId: string, id: number) {
+        return fetch(url, {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'content-type': 'application/json',
+                accept: 'application/json, text/event-stream',
+                'mcp-session-id': sessionId
+            },
+            body: JSON.stringify({
+                jsonrpc: '2.0',
+                id,
+                method: 'tools/list',
+                params: {}
+            })
+        });
+    }
+
     it('requires a valid bearer token before MCP initialization', async () => {
         const { token, url } = await startTenantServer();
 
@@ -144,6 +163,24 @@ describe('Tenant HTTP integration', () => {
         expect(second.headers.get('mcp-session-id')).toBeTruthy();
         await expect(second.json()).resolves.toMatchObject({
             result: { serverInfo: { name: 'tenant-http-test' } }
+        });
+    });
+
+    it('expires inactive streamable HTTP sessions after the configured TTL', async () => {
+        const { token, url } = await startTenantServer({ useFactory: true, sessionTtlMs: '1' });
+
+        const initialized = await initialize(url, token, 1);
+        expect(initialized.status).toBe(200);
+        const sessionId = initialized.headers.get('mcp-session-id');
+        expect(sessionId).toBeTruthy();
+        await initialized.json();
+
+        await new Promise(resolve => setTimeout(resolve, 10));
+
+        const expired = await toolsList(url, token, sessionId!, 2);
+        expect(expired.status).toBe(400);
+        await expect(expired.json()).resolves.toMatchObject({
+            error: { message: 'Bad Request: No valid session ID provided' }
         });
     });
 });
