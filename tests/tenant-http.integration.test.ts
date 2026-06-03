@@ -26,7 +26,7 @@ describe('Tenant HTTP integration', () => {
         tempDir = undefined;
     });
 
-    async function startTenantServer(options: { useFactory?: boolean; sessionTtlMs?: string } = {}) {
+    async function startTenantServer(options: { useFactory?: boolean; sessionTtlMs?: string; cleanupIntervalMs?: string; maxSessions?: string } = {}) {
         tempDir = mkdtempSync(join(tmpdir(), 'scmcp-http-'));
         const tenantsDir = join(tempDir, 'tenants');
         const tokensDir = join(tempDir, 'tokens');
@@ -62,6 +62,8 @@ describe('Tenant HTTP integration', () => {
         process.env.MCP_BIND_HOST = '127.0.0.1';
         process.env.MCP_PORT = '0';
         if (options.sessionTtlMs) process.env.MCP_HTTP_SESSION_TTL_MS = options.sessionTtlMs;
+        if (options.cleanupIntervalMs) process.env.MCP_HTTP_SESSION_CLEANUP_INTERVAL_MS = options.cleanupIntervalMs;
+        if (options.maxSessions) process.env.MCP_HTTP_MAX_SESSIONS = options.maxSessions;
 
         const createServer = () => {
             const server = new McpServer({ name: 'tenant-http-test', version: '1.0.0' });
@@ -125,6 +127,17 @@ describe('Tenant HTTP integration', () => {
         });
     }
 
+    async function deleteSession(url: URL, token: string, sessionId: string) {
+        return fetch(url, {
+            method: 'DELETE',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                accept: 'application/json, text/event-stream',
+                'mcp-session-id': sessionId
+            }
+        });
+    }
+
     it('requires a valid bearer token before MCP initialization', async () => {
         const { token, url } = await startTenantServer();
 
@@ -167,7 +180,7 @@ describe('Tenant HTTP integration', () => {
     });
 
     it('expires inactive streamable HTTP sessions after the configured TTL', async () => {
-        const { token, url } = await startTenantServer({ useFactory: true, sessionTtlMs: '1' });
+        const { token, url } = await startTenantServer({ useFactory: true, sessionTtlMs: '5', cleanupIntervalMs: '5' });
 
         const initialized = await initialize(url, token, 1);
         expect(initialized.status).toBe(200);
@@ -175,11 +188,44 @@ describe('Tenant HTTP integration', () => {
         expect(sessionId).toBeTruthy();
         await initialized.json();
 
-        await new Promise(resolve => setTimeout(resolve, 10));
+        await new Promise(resolve => setTimeout(resolve, 30));
 
         const expired = await toolsList(url, token, sessionId!, 2);
         expect(expired.status).toBe(400);
         await expect(expired.json()).resolves.toMatchObject({
+            error: { message: 'Bad Request: No valid session ID provided' }
+        });
+    });
+
+    it('rejects new initialize requests when the session cap is reached', async () => {
+        const { token, url } = await startTenantServer({ useFactory: true, maxSessions: '1' });
+
+        const first = await initialize(url, token, 1);
+        expect(first.status).toBe(200);
+        await first.json();
+
+        const second = await initialize(url, token, 2);
+        expect(second.status).toBe(503);
+        await expect(second.json()).resolves.toMatchObject({
+            error: { message: 'Service Unavailable: too many active MCP sessions' }
+        });
+    });
+
+    it('removes a streamable HTTP session after DELETE', async () => {
+        const { token, url } = await startTenantServer({ useFactory: true });
+
+        const initialized = await initialize(url, token, 1);
+        expect(initialized.status).toBe(200);
+        const sessionId = initialized.headers.get('mcp-session-id');
+        expect(sessionId).toBeTruthy();
+        await initialized.json();
+
+        const deleted = await deleteSession(url, token, sessionId!);
+        expect([200, 202, 204]).toContain(deleted.status);
+
+        const afterDelete = await toolsList(url, token, sessionId!, 2);
+        expect(afterDelete.status).toBe(400);
+        await expect(afterDelete.json()).resolves.toMatchObject({
             error: { message: 'Bad Request: No valid session ID provided' }
         });
     });

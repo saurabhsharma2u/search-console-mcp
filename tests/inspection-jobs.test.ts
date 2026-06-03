@@ -152,6 +152,11 @@ describe('URL Inspection async jobs', () => {
             total: 105,
             hasMore: true
         });
+
+        const metadata = JSON.parse(readFileSync(findJobResultsFile(started.jobId), 'utf8'));
+        expect(metadata.results).toEqual([]);
+        const resultLines = readFileSync(findJobResultItemsFile(started.jobId), 'utf8').trim().split('\n');
+        expect(resultLines).toHaveLength(105);
     });
 
     it('cancels queued jobs before provider calls start', async () => {
@@ -211,6 +216,20 @@ function findJobFile(jobId: string) {
     const files = readdirSync(join(tempInspectionDir(), 'jobs'));
     const jobFile = files.find(file => file === `${jobId}.json`);
     if (!jobFile) throw new Error(`Job file not found for ${jobId}`);
+    return join(tempInspectionDir(), 'jobs', jobFile);
+}
+
+function findJobResultsFile(jobId: string) {
+    const files = readdirSync(join(tempInspectionDir(), 'jobs'));
+    const jobFile = files.find(file => file === `${jobId}.results.json`);
+    if (!jobFile) throw new Error(`Job results file not found for ${jobId}`);
+    return join(tempInspectionDir(), 'jobs', jobFile);
+}
+
+function findJobResultItemsFile(jobId: string) {
+    const files = readdirSync(join(tempInspectionDir(), 'jobs'));
+    const jobFile = files.find(file => file === `${jobId}.results.jsonl`);
+    if (!jobFile) throw new Error(`Job result items file not found for ${jobId}`);
     return join(tempInspectionDir(), 'jobs', jobFile);
 }
 

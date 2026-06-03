@@ -6,6 +6,7 @@ import { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { resolveBearerToken } from './registry.js';
 import { isTenantRequired } from './context.js';
 import { sanitizeForLog } from '../utils/redaction.js';
+import { logger } from '../utils/logger.js';
 
 type ServerFactory = () => McpServer;
 
@@ -25,6 +26,13 @@ export async function startHttpServer(serverOrFactory: McpServer | ServerFactory
         : () => serverOrFactory;
     const sessions = new Map<string, SessionTransport>();
     const sessionTtlMs = getSessionTtlMs();
+    const maxSessions = getMaxSessions();
+    const cleanupInterval = setInterval(() => {
+        cleanupExpiredSessions(sessions, sessionTtlMs).catch(error => {
+            logger.warn('HTTP session cleanup failed', { error: sanitizeForLog(error) });
+        });
+    }, getSessionCleanupIntervalMs(sessionTtlMs));
+    cleanupInterval.unref?.();
 
     const httpServer = createServer(async (req, res) => {
         if (!req.url?.startsWith('/mcp')) {
@@ -56,16 +64,41 @@ export async function startHttpServer(serverOrFactory: McpServer | ServerFactory
                     return;
                 }
 
+                if (sessions.size >= maxSessions) {
+                    logger.warn('HTTP session limit reached', {
+                        activeSessions: sessions.size,
+                        maxSessions
+                    });
+                    sendJson(res, 503, {
+                        jsonrpc: '2.0',
+                        error: {
+                            code: -32000,
+                            message: 'Service Unavailable: too many active MCP sessions'
+                        },
+                        id: null
+                    });
+                    return;
+                }
+
                 const server = createServerInstance();
                 const transport = new StreamableHTTPServerTransport({
                     sessionIdGenerator: () => randomUUID(),
                     enableJsonResponse: true,
                     onsessioninitialized: id => {
                         sessions.set(id, { server, transport, lastSeenAt: Date.now(), activeRequests: 0 });
+                        logger.info('HTTP session created', {
+                            activeSessions: sessions.size,
+                            maxSessions
+                        });
                     }
                 });
                 transport.onclose = () => {
-                    if (transport.sessionId) sessions.delete(transport.sessionId);
+                    if (transport.sessionId && sessions.delete(transport.sessionId)) {
+                        logger.info('HTTP session closed', {
+                            activeSessions: sessions.size,
+                            maxSessions
+                        });
+                    }
                 };
                 await server.connect(transport);
                 session = { server, transport, lastSeenAt: Date.now(), activeRequests: 0 };
@@ -86,6 +119,9 @@ export async function startHttpServer(serverOrFactory: McpServer | ServerFactory
                         stored.activeRequests = session.activeRequests;
                     }
                 }
+                if (req.method === 'DELETE' && transport.sessionId) {
+                    await closeAndDeleteSession(sessions, transport.sessionId, 'deleted', maxSessions);
+                }
             }
         } catch (error) {
             const status = (error as any).status || 500;
@@ -100,6 +136,16 @@ export async function startHttpServer(serverOrFactory: McpServer | ServerFactory
         }
     });
 
+    httpServer.on('close', () => {
+        clearInterval(cleanupInterval);
+        for (const [id, session] of sessions) {
+            sessions.delete(id);
+            session.transport.close().catch(() => {
+                // Best-effort shutdown cleanup.
+            });
+        }
+    });
+
     await new Promise<void>((resolve) => httpServer.listen(port, host, resolve));
     console.error(`Search Console MCP Streamable HTTP listening on http://${host}:${port}/mcp`);
     return httpServer;
@@ -107,22 +153,57 @@ export async function startHttpServer(serverOrFactory: McpServer | ServerFactory
 
 async function cleanupExpiredSessions(sessions: Map<string, SessionTransport>, sessionTtlMs: number) {
     const now = Date.now();
+    let expired = 0;
     for (const [id, session] of sessions) {
         if (session.activeRequests > 0) continue;
         if (now - session.lastSeenAt <= sessionTtlMs) continue;
-        sessions.delete(id);
-        try {
-            await session.transport.close();
-        } catch {
-            // Best-effort cleanup; a failed close should not break unrelated requests.
-        }
+        await closeAndDeleteSession(sessions, id, 'expired');
+        expired++;
     }
+    if (expired > 0) {
+        logger.info('HTTP sessions expired', {
+            expiredSessions: expired,
+            activeSessions: sessions.size
+        });
+    }
+}
+
+async function closeAndDeleteSession(
+    sessions: Map<string, SessionTransport>,
+    id: string,
+    reason: 'expired' | 'deleted',
+    maxSessions?: number
+) {
+    const session = sessions.get(id);
+    if (!session) return;
+    sessions.delete(id);
+    try {
+        await session.transport.close();
+    } catch {
+        // Best-effort cleanup; a failed close should not break unrelated requests.
+    }
+    logger.info('HTTP session removed', {
+        reason,
+        activeSessions: sessions.size,
+        ...(maxSessions ? { maxSessions } : {})
+    });
 }
 
 function getSessionTtlMs() {
     const fallback = 30 * 60 * 1000;
     const configured = Number(process.env.MCP_HTTP_SESSION_TTL_MS || fallback);
     return Number.isFinite(configured) && configured > 0 ? configured : fallback;
+}
+
+function getSessionCleanupIntervalMs(sessionTtlMs: number) {
+    const fallback = Math.min(60 * 1000, Math.max(1_000, Math.floor(sessionTtlMs / 2)));
+    const configured = Number(process.env.MCP_HTTP_SESSION_CLEANUP_INTERVAL_MS || fallback);
+    return Number.isFinite(configured) && configured > 0 ? configured : fallback;
+}
+
+function getMaxSessions() {
+    const configured = Number(process.env.MCP_HTTP_MAX_SESSIONS || 100);
+    return Number.isFinite(configured) && configured > 0 ? Math.floor(configured) : 100;
 }
 
 function getHeader(req: IncomingMessage, name: string): string | undefined {

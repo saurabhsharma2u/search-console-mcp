@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, readSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { sanitizeForLog } from '../../utils/redaction.js';
 import { forbidden, notFound } from '../../tenant/errors.js';
@@ -104,6 +104,7 @@ export function startInspectionBatchJob(input: StartInspectionBatchJobInput) {
     summary: job.summary,
     results: []
   });
+  writeFileSync(resultsItemsPath(job.jobId), '', { mode: 0o600 });
 
   void runJobSoon(job.jobId, tenantForWorker(input.tenant));
 
@@ -153,10 +154,9 @@ export function getInspectionBatchJobResults(
 ) {
   cleanupExpiredInspectionJobs();
   const job = readAuthorizedJob(tenant, jobId);
-  const stored = readJobResults(jobId);
   const offset = Math.max(0, options.offset ?? 0);
   const limit = normalizeResultsLimit(options.limit);
-  const results = stored.results.slice(offset, offset + limit);
+  const page = readJobResultSlice(jobId, offset, limit);
   return {
     jobId: job.jobId,
     tenantId: job.tenantId,
@@ -166,11 +166,11 @@ export function getInspectionBatchJobResults(
     pagination: {
       offset,
       limit,
-      returned: results.length,
-      total: stored.results.length,
-      hasMore: offset + results.length < stored.results.length
+      returned: page.results.length,
+      total: page.total,
+      hasMore: offset + page.results.length < page.total
     },
-    results
+    results: page.results
   };
 }
 
@@ -211,12 +211,12 @@ async function runInspectionBatchJob(jobId: string, tenant: TenantContext) {
   if (job.status === 'cancelled' || job.cancelRequested) return;
 
   const urls = readJobInput(jobId);
-  const results = readJobResults(jobId);
   const now = new Date().toISOString();
   job.status = 'running';
   job.startedAt = job.startedAt || now;
   job.updatedAt = now;
   writeJob(job);
+  writeJobResultsFromJob(job);
 
   const chunkSize = Number(process.env.MCP_INSPECTION_JOB_CHUNK_SIZE || process.env.MCP_INSPECTION_CHUNK_SIZE || 25);
   for (const chunk of chunkArray(urls, chunkSize)) {
@@ -226,8 +226,7 @@ async function runInspectionBatchJob(jobId: string, tenant: TenantContext) {
       job.completedAt = new Date().toISOString();
       job.updatedAt = job.completedAt;
       writeJob(job);
-      results.status = job.status;
-      writeJobResults(results);
+      writeJobResultsFromJob(job);
       return;
     }
 
@@ -240,23 +239,19 @@ async function runInspectionBatchJob(jobId: string, tenant: TenantContext) {
       maxApiCallsPerRun: remainingApiCalls
     });
 
-    results.results.push(...batch.results);
+    appendJobResultRows(jobId, batch.results);
     mergeSummary(job.summary, batch.summary);
-    job.processedUrls = results.results.length;
+    job.processedUrls += batch.results.length;
     job.updatedAt = new Date().toISOString();
-    results.status = job.status;
-    results.summary = job.summary;
     writeJob(job);
-    writeJobResults(results);
+    writeJobResultsFromJob(job);
   }
 
   job.status = 'completed';
   job.completedAt = new Date().toISOString();
   job.updatedAt = job.completedAt;
-  results.status = job.status;
-  results.summary = job.summary;
   writeJob(job);
-  writeJobResults(results);
+  writeJobResultsFromJob(job);
 }
 
 function failJob(jobId: string, error: unknown) {
@@ -267,10 +262,7 @@ function failJob(jobId: string, error: unknown) {
     job.completedAt = new Date().toISOString();
     job.updatedAt = job.completedAt;
     writeJob(job);
-    const results = readJobResults(jobId);
-    results.status = 'failed';
-    results.summary = job.summary;
-    writeJobResults(results);
+    writeJobResultsFromJob(job);
   } catch {
     // Nothing useful to do if the job files disappeared while the worker was failing.
   }
@@ -325,6 +317,66 @@ function writeJobResults(results: InspectionBatchJobResults) {
   writeFileSync(resultsPath(results.jobId), `${JSON.stringify(results, null, 2)}\n`, { mode: 0o600 });
 }
 
+function writeJobResultsFromJob(job: InspectionBatchJob) {
+  writeJobResults({
+    jobId: job.jobId,
+    tenantId: job.tenantId,
+    siteUrl: job.siteUrl,
+    status: job.status,
+    summary: job.summary,
+    results: []
+  });
+}
+
+function appendJobResultRows(jobId: string, rows: any[]) {
+  if (rows.length === 0) return;
+  ensureJobDir();
+  const payload = rows.map(row => JSON.stringify(row)).join('\n');
+  appendFileSync(resultsItemsPath(jobId), `${payload}\n`, { mode: 0o600 });
+}
+
+function readJobResultSlice(jobId: string, offset: number, limit: number): { results: any[]; total: number } {
+  const itemsPath = resultsItemsPath(jobId);
+  if (!existsSync(itemsPath)) {
+    const stored = readJobResults(jobId);
+    return {
+      results: stored.results.slice(offset, offset + limit),
+      total: stored.results.length
+    };
+  }
+
+  const results: any[] = [];
+  let total = 0;
+  let carry = '';
+  const fd = openSync(itemsPath, 'r');
+  const buffer = Buffer.alloc(64 * 1024);
+  try {
+    while (true) {
+      const bytesRead = readSync(fd, buffer, 0, buffer.length, null);
+      if (bytesRead === 0) break;
+      const text = carry + buffer.toString('utf8', 0, bytesRead);
+      const lines = text.split('\n');
+      carry = lines.pop() || '';
+      for (const line of lines) {
+        if (!line) continue;
+        if (total >= offset && results.length < limit) {
+          results.push(JSON.parse(line));
+        }
+        total++;
+      }
+    }
+    if (carry) {
+      if (total >= offset && results.length < limit) {
+        results.push(JSON.parse(carry));
+      }
+      total++;
+    }
+  } finally {
+    closeSync(fd);
+  }
+  return { results, total };
+}
+
 export function cleanupExpiredInspectionJobs(now = Date.now()) {
   const dir = jobsDir();
   if (!existsSync(dir)) return;
@@ -357,6 +409,10 @@ function resultsPath(jobId: string) {
   return join(jobsDir(), `${safeJobId(jobId)}.results.json`);
 }
 
+function resultsItemsPath(jobId: string) {
+  return join(jobsDir(), `${safeJobId(jobId)}.results.jsonl`);
+}
+
 function jobsDir() {
   return join(getInspectionCacheDir(), 'jobs');
 }
@@ -366,7 +422,7 @@ function ensureJobDir() {
 }
 
 function deleteJobFiles(jobId: string) {
-  for (const path of [jobPath(jobId), inputPath(jobId), resultsPath(jobId)]) {
+  for (const path of [jobPath(jobId), inputPath(jobId), resultsPath(jobId), resultsItemsPath(jobId)]) {
     try {
       if (existsSync(path)) unlinkSync(path);
     } catch {
