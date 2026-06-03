@@ -1,5 +1,6 @@
 import { getSearchConsoleClient } from '../client.js';
 import { searchconsole_v1 } from 'googleapis';
+import { runGoogleApiCall } from '../upstream.js';
 
 /**
  * List all sitemaps submitted for a specific site.
@@ -9,7 +10,9 @@ import { searchconsole_v1 } from 'googleapis';
  */
 export async function listSitemaps(siteUrl: string): Promise<searchconsole_v1.Schema$WmxSitemap[]> {
   const client = await getSearchConsoleClient(siteUrl);
-  const res = await client.sitemaps.list({ siteUrl });
+  const res = await runGoogleApiCall('sitemaps.list', (requestOptions) =>
+    client.sitemaps.list({ siteUrl }, requestOptions)
+  );
   return res.data.sitemap || [];
 }
 
@@ -22,7 +25,9 @@ export async function listSitemaps(siteUrl: string): Promise<searchconsole_v1.Sc
  */
 export async function submitSitemap(siteUrl: string, feedpath: string): Promise<string> {
   const client = await getSearchConsoleClient(siteUrl);
-  await client.sitemaps.submit({ siteUrl, feedpath });
+  await runGoogleApiCall('sitemaps.submit', (requestOptions) =>
+    client.sitemaps.submit({ siteUrl, feedpath }, requestOptions)
+  );
   return `Successfully submitted sitemap: ${feedpath} for ${siteUrl}`;
 }
 
@@ -35,7 +40,9 @@ export async function submitSitemap(siteUrl: string, feedpath: string): Promise<
  */
 export async function deleteSitemap(siteUrl: string, feedpath: string): Promise<string> {
   const client = await getSearchConsoleClient(siteUrl);
-  await client.sitemaps.delete({ siteUrl, feedpath });
+  await runGoogleApiCall('sitemaps.delete', (requestOptions) =>
+    client.sitemaps.delete({ siteUrl, feedpath }, requestOptions)
+  );
   return `Successfully deleted sitemap: ${feedpath} from ${siteUrl}`;
 }
 
@@ -48,6 +55,8 @@ export async function deleteSitemap(siteUrl: string, feedpath: string): Promise<
  */
 export async function getSitemap(siteUrl: string, feedpath: string): Promise<searchconsole_v1.Schema$WmxSitemap> {
   const client = await getSearchConsoleClient(siteUrl);
-  const res = await client.sitemaps.get({ siteUrl, feedpath });
+  const res = await runGoogleApiCall('sitemaps.get', (requestOptions) =>
+    client.sitemaps.get({ siteUrl, feedpath }, requestOptions)
+  );
   return res.data;
 }

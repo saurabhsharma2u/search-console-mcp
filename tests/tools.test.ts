@@ -38,21 +38,30 @@ describe('Sites Tools', () => {
         mockSearchConsoleClient.sites.add.mockResolvedValue({});
         const result = await addSite('https://example.com');
         expect(result).toContain('Successfully added site');
-        expect(mockSearchConsoleClient.sites.add).toHaveBeenCalledWith({ siteUrl: 'https://example.com' });
+        expect(mockSearchConsoleClient.sites.add).toHaveBeenCalledWith(
+            { siteUrl: 'https://example.com' },
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 
     it('should delete a site', async () => {
         mockSearchConsoleClient.sites.delete.mockResolvedValue({});
         const result = await deleteSite('https://example.com');
         expect(result).toContain('Successfully deleted site');
-        expect(mockSearchConsoleClient.sites.delete).toHaveBeenCalledWith({ siteUrl: 'https://example.com' });
+        expect(mockSearchConsoleClient.sites.delete).toHaveBeenCalledWith(
+            { siteUrl: 'https://example.com' },
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 
     it('should get a site', async () => {
         mockSearchConsoleClient.sites.get.mockResolvedValue({ data: { siteUrl: 'https://example.com', permissionLevel: 'siteOwner' } });
         const result = await getSite('https://example.com');
         expect(result).toEqual({ siteUrl: 'https://example.com', permissionLevel: 'siteOwner' });
-        expect(mockSearchConsoleClient.sites.get).toHaveBeenCalledWith({ siteUrl: 'https://example.com' });
+        expect(mockSearchConsoleClient.sites.get).toHaveBeenCalledWith(
+            { siteUrl: 'https://example.com' },
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 });
 
@@ -67,7 +76,10 @@ describe('Sitemaps Tools', () => {
         });
         const sitemaps = await listSitemaps('https://example.com');
         expect(sitemaps).toEqual([{ path: 'https://example.com/sitemap.xml' }]);
-        expect(mockSearchConsoleClient.sitemaps.list).toHaveBeenCalledWith({ siteUrl: 'https://example.com' });
+        expect(mockSearchConsoleClient.sitemaps.list).toHaveBeenCalledWith(
+            { siteUrl: 'https://example.com' },
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 
     it('should list sitemaps with empty result', async () => {
@@ -82,20 +94,26 @@ describe('Sitemaps Tools', () => {
         mockSearchConsoleClient.sitemaps.submit.mockResolvedValue({});
         const result = await submitSitemap('https://example.com', 'https://example.com/sitemap.xml');
         expect(result).toContain('Successfully submitted sitemap');
-        expect(mockSearchConsoleClient.sitemaps.submit).toHaveBeenCalledWith({
-            siteUrl: 'https://example.com',
-            feedpath: 'https://example.com/sitemap.xml'
-        });
+        expect(mockSearchConsoleClient.sitemaps.submit).toHaveBeenCalledWith(
+            {
+                siteUrl: 'https://example.com',
+                feedpath: 'https://example.com/sitemap.xml'
+            },
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 
     it('should delete sitemap', async () => {
         mockSearchConsoleClient.sitemaps.delete.mockResolvedValue({});
         const result = await deleteSitemap('https://example.com', 'https://example.com/sitemap.xml');
         expect(result).toContain('Successfully deleted sitemap');
-        expect(mockSearchConsoleClient.sitemaps.delete).toHaveBeenCalledWith({
-            siteUrl: 'https://example.com',
-            feedpath: 'https://example.com/sitemap.xml'
-        });
+        expect(mockSearchConsoleClient.sitemaps.delete).toHaveBeenCalledWith(
+            {
+                siteUrl: 'https://example.com',
+                feedpath: 'https://example.com/sitemap.xml'
+            },
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 
     it('should get sitemap', async () => {
@@ -103,10 +121,13 @@ describe('Sitemaps Tools', () => {
         mockSearchConsoleClient.sitemaps.get.mockResolvedValue({ data: mockSitemap });
         const result = await getSitemap('https://example.com', 'https://example.com/sitemap.xml');
         expect(result).toEqual(mockSitemap);
-        expect(mockSearchConsoleClient.sitemaps.get).toHaveBeenCalledWith({
-            siteUrl: 'https://example.com',
-            feedpath: 'https://example.com/sitemap.xml'
-        });
+        expect(mockSearchConsoleClient.sitemaps.get).toHaveBeenCalledWith(
+            {
+                siteUrl: 'https://example.com',
+                feedpath: 'https://example.com/sitemap.xml'
+            },
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 });
 
@@ -129,13 +150,16 @@ describe('Analytics Tools', () => {
         });
 
         expect(result).toEqual(mockRows);
-        expect(mockSearchConsoleClient.searchanalytics.query).toHaveBeenCalledWith(expect.objectContaining({
-            siteUrl: 'https://example.com',
-            requestBody: expect.objectContaining({
-                startDate: '2023-01-01',
-                endDate: '2023-01-31'
-            })
-        }));
+        expect(mockSearchConsoleClient.searchanalytics.query).toHaveBeenCalledWith(
+            expect.objectContaining({
+                siteUrl: 'https://example.com',
+                requestBody: expect.objectContaining({
+                    startDate: '2023-01-01',
+                    endDate: '2023-01-31'
+                })
+            }),
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 
     it('should query analytics with empty results', async () => {
@@ -166,13 +190,16 @@ describe('Analytics Tools', () => {
         });
 
         expect(result).toEqual(mockRows);
-        expect(mockSearchConsoleClient.searchanalytics.query).toHaveBeenCalledWith(expect.objectContaining({
-            requestBody: expect.objectContaining({
-                dimensionFilterGroups: [{
-                    filters: [{ dimension: 'query', operator: 'contains', expression: 'test' }]
-                }]
-            })
-        }));
+        expect(mockSearchConsoleClient.searchanalytics.query).toHaveBeenCalledWith(
+            expect.objectContaining({
+                requestBody: expect.objectContaining({
+                    dimensionFilterGroups: [{
+                        filters: [{ dimension: 'query', operator: 'contains', expression: 'test' }]
+                    }]
+                })
+            }),
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 
     it('should query analytics with startRow for pagination', async () => {
@@ -189,11 +216,14 @@ describe('Analytics Tools', () => {
         });
 
         expect(result).toEqual(mockRows);
-        expect(mockSearchConsoleClient.searchanalytics.query).toHaveBeenCalledWith(expect.objectContaining({
-            requestBody: expect.objectContaining({
-                startRow: 100
-            })
-        }));
+        expect(mockSearchConsoleClient.searchanalytics.query).toHaveBeenCalledWith(
+            expect.objectContaining({
+                requestBody: expect.objectContaining({
+                    startRow: 100
+                })
+            }),
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 
     it('should get performance summary', async () => {
@@ -416,13 +446,16 @@ describe('Inspection Tools', () => {
         const result = await inspectUrl('https://example.com', 'https://example.com/page');
 
         expect(result).toEqual(mockResponse);
-        expect(mockSearchConsoleClient.urlInspection.index.inspect).toHaveBeenCalledWith({
-            requestBody: {
-                inspectionUrl: 'https://example.com/page',
-                siteUrl: 'https://example.com',
-                languageCode: 'en-US'
-            }
-        });
+        expect(mockSearchConsoleClient.urlInspection.index.inspect).toHaveBeenCalledWith(
+            {
+                requestBody: {
+                    inspectionUrl: 'https://example.com/page',
+                    siteUrl: 'https://example.com',
+                    languageCode: 'en-US'
+                }
+            },
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 
     it('should inspect url with custom language code', async () => {
@@ -434,12 +467,15 @@ describe('Inspection Tools', () => {
         const result = await inspectUrl('https://example.com', 'https://example.com/page', 'de-DE');
 
         expect(result).toEqual(mockResponse);
-        expect(mockSearchConsoleClient.urlInspection.index.inspect).toHaveBeenCalledWith({
-            requestBody: {
-                inspectionUrl: 'https://example.com/page',
-                siteUrl: 'https://example.com',
-                languageCode: 'de-DE'
-            }
-        });
+        expect(mockSearchConsoleClient.urlInspection.index.inspect).toHaveBeenCalledWith(
+            {
+                requestBody: {
+                    inspectionUrl: 'https://example.com/page',
+                    siteUrl: 'https://example.com',
+                    languageCode: 'de-DE'
+                }
+            },
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 });

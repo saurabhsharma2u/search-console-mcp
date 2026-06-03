@@ -1,6 +1,7 @@
 import { getSearchConsoleClient } from '../client.js';
 import { searchconsole_v1 } from 'googleapis';
 import { logger } from '../../utils/logger.js';
+import { runGoogleApiCall } from '../upstream.js';
 
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 const MAX_CACHE_SIZE = 100;
@@ -208,10 +209,12 @@ export async function queryAnalytics(options: AnalyticsOptions): Promise<searchc
         filters: options.filters?.length || 0
       });
 
-      const res = await client.searchanalytics.query({
-        siteUrl: options.siteUrl,
-        requestBody
-      });
+      const res = await runGoogleApiCall('searchanalytics.query', (requestOptions) =>
+        client.searchanalytics.query({
+          siteUrl: options.siteUrl,
+          requestBody
+        }, requestOptions)
+      );
 
       const rows = res.data.rows || [];
       logger.debug(`Received ${rows.length} rows for ${options.siteUrl}`);
@@ -229,7 +232,6 @@ export async function queryAnalytics(options: AnalyticsOptions): Promise<searchc
 
       return rows;
     } catch (error) {
-      logger.error(`Error fetching analytics for ${options.siteUrl}:`, (error as Error).message);
       analyticsCache.delete(cacheKey);
       throw error;
     }

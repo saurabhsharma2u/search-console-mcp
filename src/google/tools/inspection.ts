@@ -4,6 +4,7 @@ import { limitConcurrency } from '../../common/concurrency.js';
 import { TenantContext } from '../../tenant/types.js';
 import { isUrlAllowedBySites } from '../../tenant/guard.js';
 import { sanitizeForLog } from '../../utils/redaction.js';
+import { runGoogleApiCall } from '../upstream.js';
 import {
   appendInspectionCacheEvent,
   calculateCacheAgeHours,
@@ -35,13 +36,15 @@ export async function inspectUrl(
   languageCode: string = 'en-US'
 ): Promise<searchconsole_v1.Schema$InspectUrlIndexResponse> {
   const client = await getSearchConsoleClient(siteUrl);
-  const res = await client.urlInspection.index.inspect({
-    requestBody: {
-      inspectionUrl,
-      siteUrl,
-      languageCode
-    }
-  });
+  const res = await runGoogleApiCall('urlInspection.index.inspect', (requestOptions) =>
+    client.urlInspection.index.inspect({
+      requestBody: {
+        inspectionUrl,
+        siteUrl,
+        languageCode
+      }
+    }, requestOptions)
+  );
   return res.data;
 }
 

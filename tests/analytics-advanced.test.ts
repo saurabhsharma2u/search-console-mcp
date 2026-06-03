@@ -167,11 +167,14 @@ describe('getPerformanceByCountry', () => {
         expect(result.items.length).toBe(2);
         expect(result.items[0].key).toBe('USA');
         expect(result.items[0].clicks).toBe(100);
-        expect(mockSearchConsoleClient.searchanalytics.query).toHaveBeenCalledWith(expect.objectContaining({
-            requestBody: expect.objectContaining({
-                dimensions: ['country']
-            })
-        }));
+        expect(mockSearchConsoleClient.searchanalytics.query).toHaveBeenCalledWith(
+            expect.objectContaining({
+                requestBody: expect.objectContaining({
+                    dimensions: ['country']
+                })
+            }),
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 });
 
@@ -193,11 +196,13 @@ describe('getPerformanceBySearchAppearance', () => {
 
         expect(result.items.length).toBe(1);
         expect(result.items[0].key).toBe('AMP_BLUE_LINK');
-        expect(mockSearchConsoleClient.searchanalytics.query).toHaveBeenCalledWith(expect.objectContaining({
-            requestBody: expect.objectContaining({
-                dimensions: ['searchAppearance']
-            })
-        }));
+        expect(mockSearchConsoleClient.searchanalytics.query).toHaveBeenCalledWith(
+            expect.objectContaining({
+                requestBody: expect.objectContaining({
+                    dimensions: ['searchAppearance']
+                })
+            }),
+            expect.objectContaining({ timeout: expect.any(Number) })
+        );
     });
 });
-
