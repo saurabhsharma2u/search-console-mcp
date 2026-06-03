@@ -3,6 +3,8 @@ import { google } from 'googleapis';
 import { AccountConfig, loadConfig } from '../common/auth/config.js';
 import { resolveAccount } from '../common/auth/resolver.js';
 import { loadTokensForAccount, saveTokensForAccount, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET } from '../google/client.js';
+import { getCurrentTenant } from '../tenant/context.js';
+import { assertAccountIdAllowed, assertGa4PropertyAllowed } from '../tenant/guard.js';
 
 export class GA4Client {
     private client: BetaAnalyticsDataClient;
@@ -55,12 +57,16 @@ export async function getGA4Client(propertyId?: string, accountId?: string): Pro
     const config = await loadConfig();
 
     if (accountId) {
+        const tenant = getCurrentTenant();
+        if (tenant) assertAccountIdAllowed(tenant, accountId, 'ga4');
         account = config.accounts[accountId];
         if (!account) throw new Error(`Account ${accountId} not found.`);
     } else {
         const accounts = Object.values(config.accounts).filter(a => a.engine === 'ga4');
 
         if (propertyId) {
+            const tenant = getCurrentTenant();
+            if (tenant) assertGa4PropertyAllowed(tenant, propertyId);
             // Try to find by propertyId property
             account = accounts.find(a => a.ga4PropertyId === propertyId);
 
@@ -76,6 +82,10 @@ export async function getGA4Client(propertyId?: string, accountId?: string): Pro
 
         // Default to single account if available and no specific account found yet
         if (!account) {
+            const tenant = getCurrentTenant();
+            if (tenant) {
+                throw new Error(`GA4 account for Property ID ${propertyId || 'default'} not found for tenant.`);
+            }
             if (accounts.length === 1) {
                 account = accounts[0];
             } else if (accounts.length > 1) {
@@ -152,6 +162,9 @@ export async function getGA4Client(propertyId?: string, accountId?: string): Pro
 
     // 4. Fallback to Environment Variables (Google Application Credentials)
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        if (getCurrentTenant()) {
+            throw new Error(`Authentication configuration not found for account ${account.alias}. Tenant mode does not allow environment credential fallback.`);
+        }
         client = new BetaAnalyticsDataClient({
             keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS
         });

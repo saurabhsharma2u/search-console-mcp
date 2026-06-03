@@ -7,6 +7,7 @@ import * as sites from "./google/tools/sites.js";
 import * as sitemaps from "./google/tools/sitemaps.js";
 import * as analytics from "./google/tools/analytics.js";
 import * as inspection from "./google/tools/inspection.js";
+import * as inspectionJobs from "./google/tools/inspection-jobs.js";
 import * as pagespeed from "./google/tools/pagespeed.js";
 import * as seoInsights from "./google/tools/seo-insights.js";
 import * as seoPrimitives from "./common/tools/seo-primitives.js";
@@ -39,6 +40,13 @@ import { getSearchConsoleClient } from './google/client.js';
 import { getBingClient } from './bing/client.js';
 import { limitConcurrency } from './common/concurrency.js';
 import {
+  dimensionsDocs,
+  filtersDocs,
+  searchTypesDocs,
+  patternsDocs,
+  algorithmUpdatesDocs
+} from "./google/docs/index.js";
+import {
   bingApiDocs,
   indexNowDocs,
   dimensionsDocs as bingDimensionsDocs,
@@ -60,6 +68,11 @@ import { registerPrompts } from "./prompts/index.js";
 import { jsonToCsv } from "./common/utils/csv.js";
 import { runDiagnostics } from "./common/diagnostics.js";
 import { logger } from "./utils/logger.js";
+import { installTenantGuard } from "./tenant/tool-guard.js";
+import { startHttpServer } from "./tenant/http.js";
+import { getCurrentTenant } from "./tenant/context.js";
+import { forbidden } from "./tenant/errors.js";
+import { getInspectionCacheStats } from "./google/tools/inspection-cache.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -74,10 +87,13 @@ try {
   // Fallback for cases where package.json might not be accessible
 }
 
+export function createMcpServer() {
 const server = new McpServer({
   name: "search-console-mcp",
   version: version,
 });
+
+installTenantGuard(server);
 
 // Get Started Tool
 server.tool(
@@ -719,13 +735,166 @@ server.tool(
     siteUrl: z.string().describe("The URL of the property"),
     inspectionUrl: z.string().describe("The fully-qualified URL to inspect"),
     languageCode: z.string().optional().describe("Language code for localized results (Google only)"),
+    cacheMode: z.enum(["read_write", "read_only", "bypass", "read", "write"]).optional().describe("Cache behavior for Google inspection: read_write, read_only, or bypass (default: read_write; read/write are deprecated aliases)"),
+    maxAgeHours: z.number().optional().describe("Maximum cache age in hours (default: 24)"),
+    forceRefresh: z.boolean().optional().describe("Bypass fresh cache and call Google API (default: false)"),
     engine: z.enum(["google", "bing"]).optional().describe("The search engine (default: google)")
   },
-  async ({ siteUrl, inspectionUrl, languageCode, engine = "google" }) => {
+  async ({ siteUrl, inspectionUrl, languageCode, cacheMode, maxAgeHours, forceRefresh, engine = "google" }) => {
     try {
       const result = engine === "google"
-        ? await inspection.inspectUrl(siteUrl, inspectionUrl, languageCode)
+        ? await inspection.inspectUrlNormalized(siteUrl, inspectionUrl, languageCode, getCurrentTenant(), { cacheMode, maxAgeHours, forceRefresh })
         : await bingInspection.getUrlInfo(siteUrl, inspectionUrl);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_batch_inspect",
+  "Inspect multiple Google Search Console URLs with tenant-scoped cache and per-URL partial results",
+  {
+    siteUrl: z.string().describe("The Search Console property URL"),
+    urls: z.array(z.string()).describe("Fully-qualified URLs to inspect"),
+    cacheMode: z.enum(["read_write", "read_only", "bypass", "read", "write"]).optional().describe("Cache behavior: read_write, read_only, or bypass (default: read_write; read/write are deprecated aliases)"),
+    maxAgeHours: z.number().optional().describe("Maximum cache age in hours (default: 24; use 12 for fresh_url flows)"),
+    forceRefresh: z.boolean().optional().describe("Bypass fresh cache and call Google API until per-run quota limit is reached"),
+    languageCode: z.string().optional().describe("Language code for localized Google results")
+  },
+  async ({ siteUrl, urls, cacheMode, maxAgeHours, forceRefresh, languageCode }) => {
+    try {
+      const tenant = getCurrentTenant();
+      const maxApiCallsPerRun = Number(process.env.MCP_INSPECTION_MAX_API_CALLS_PER_RUN || tenant?.limits.maxBatchUrls || 10);
+      const result = await inspection.inspectBatchWithCache(siteUrl, urls, tenant, {
+        cacheMode,
+        maxAgeHours,
+        forceRefresh,
+        languageCode,
+        maxApiCallsPerRun
+      });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_cache_stats",
+  "Return tenant-scoped Google URL Inspection cache usage statistics",
+  {
+    siteUrl: z.string().optional().describe("Optional Search Console property URL to filter stats"),
+    startDate: z.string().optional().describe("Optional start date (YYYY-MM-DD)"),
+    endDate: z.string().optional().describe("Optional end date (YYYY-MM-DD)")
+  },
+  async ({ siteUrl, startDate, endDate }) => {
+    try {
+      const tenant = getCurrentTenant();
+      if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection cache stats');
+      const result = getInspectionCacheStats(tenant, { siteUrl, startDate, endDate });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_batch_job_start",
+  "Start an asynchronous tenant-scoped Google URL Inspection batch job",
+  {
+    siteUrl: z.string().describe("The Search Console property URL"),
+    urls: z.array(z.string()).describe("Fully-qualified URLs to inspect"),
+    cacheMode: z.enum(["read_write", "read_only", "bypass", "read", "write"]).optional().describe("Cache behavior: read_write, read_only, or bypass (default: read_write; read/write are deprecated aliases)"),
+    maxAgeHours: z.number().optional().describe("Maximum cache age in hours (default: 24; use 12 for fresh_url flows)"),
+    forceRefresh: z.boolean().optional().describe("Bypass fresh cache and call Google API until per-run quota limit is reached"),
+    languageCode: z.string().optional().describe("Language code for localized Google results")
+  },
+  async ({ siteUrl, urls, cacheMode, maxAgeHours, forceRefresh, languageCode }) => {
+    try {
+      const tenant = getCurrentTenant();
+      if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection batch jobs');
+      const maxApiCallsPerRun = Number(process.env.MCP_INSPECTION_MAX_API_CALLS_PER_RUN || tenant.limits.maxBatchUrls || 10);
+      const result = inspectionJobs.startInspectionBatchJob({
+        siteUrl,
+        urls,
+        tenant,
+        cacheMode,
+        maxAgeHours,
+        forceRefresh,
+        languageCode,
+        maxApiCallsPerRun
+      });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_batch_job_status",
+  "Return status for an asynchronous URL Inspection batch job",
+  {
+    jobId: z.string().describe("The job ID returned by inspection_batch_job_start")
+  },
+  async ({ jobId }) => {
+    try {
+      const tenant = getCurrentTenant();
+      if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection batch jobs');
+      const result = inspectionJobs.getInspectionBatchJobStatus(tenant, jobId);
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_batch_job_results",
+  "Return partial or completed results for an asynchronous URL Inspection batch job",
+  {
+    jobId: z.string().describe("The job ID returned by inspection_batch_job_start"),
+    offset: z.number().optional().describe("Optional zero-based result offset for pagination"),
+    limit: z.number().optional().describe("Optional maximum number of results to return")
+  },
+  async ({ jobId, offset, limit }) => {
+    try {
+      const tenant = getCurrentTenant();
+      if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection batch jobs');
+      const result = inspectionJobs.getInspectionBatchJobResults(tenant, jobId, { offset, limit });
+      return {
+        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
+      };
+    } catch (error) {
+      return formatError(error);
+    }
+  }
+);
+
+server.tool(
+  "inspection_batch_job_cancel",
+  "Cancel a queued or running asynchronous URL Inspection batch job",
+  {
+    jobId: z.string().describe("The job ID returned by inspection_batch_job_start")
+  },
+  async ({ jobId }) => {
+    try {
+      const tenant = getCurrentTenant();
+      if (!tenant) throw forbidden('403 Forbidden: tenant context is required for inspection batch jobs');
+      const result = inspectionJobs.cancelInspectionBatchJob(tenant, jobId);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
       };
@@ -1556,13 +1725,38 @@ server.tool(
   "Submit URLs via IndexNow API (Bing, Yandex, etc.)",
   {
     host: z.string().describe("The host/domain where URLs are located (e.g., www.example.com)"),
-    key: z.string().describe("The IndexNow key generated for this host"),
+    key: z.string().optional().describe("The IndexNow key generated for this host. In tenant HTTP mode this is resolved server-side and must be omitted."),
     keyLocation: z.string().optional().describe("Optional URL of the key file (if not at host root)"),
     urlList: z.array(z.string()).describe("List of absolute URLs to notify IndexNow about")
   },
   async (options) => {
     try {
-      const result = await indexNow.submitIndexNow(options);
+      const tenant = getCurrentTenant();
+      let key = options.key;
+      let keyLocation = options.keyLocation;
+
+      if (tenant) {
+        if (options.key) {
+          throw forbidden("403 Forbidden: IndexNow key must be configured server-side for tenant calls");
+        }
+        const tenantKey = tenant.indexNowKeys[options.host.toLowerCase()];
+        if (!tenantKey) {
+          throw forbidden("403 Forbidden: IndexNow key is not configured for this tenant host");
+        }
+        key = tenantKey.key;
+        keyLocation = tenantKey.keyLocation;
+      }
+
+      if (!key) {
+        throw new Error("IndexNow key is required");
+      }
+
+      const result = await indexNow.submitIndexNow({
+        host: options.host,
+        key,
+        keyLocation,
+        urlList: options.urlList
+      });
       return {
         content: [{ type: "text", text: result }]
       };
@@ -2164,8 +2358,6 @@ server.resource(
 );
 
 // Documentation Resources
-import { dimensionsDocs, filtersDocs, searchTypesDocs, patternsDocs, algorithmUpdatesDocs } from "./google/docs/index.js";
-
 server.resource(
   "docs-dimensions",
   "docs://dimensions",
@@ -2626,6 +2818,9 @@ server.tool(
   }
 );
 
+return server;
+}
+
 async function main() {
   const command = process.argv[2];
 
@@ -2639,6 +2834,12 @@ async function main() {
   if (command === 'account' || command === 'accounts') {
     const { main: accountsMain } = await import('./accounts.js');
     await accountsMain(process.argv.slice(3));
+    return;
+  }
+
+  if (command === 'tenants' || command === 'tokens') {
+    const { main: tenantCliMain } = await import('./tenant/cli.js');
+    await tenantCliMain(process.argv.slice(2));
     return;
   }
 
@@ -2657,6 +2858,11 @@ async function main() {
   if (command === 'diagnostics') {
     const results = await runDiagnostics();
     console.log(JSON.stringify(results, null, 2));
+    return;
+  }
+
+  if (command === 'serve-http' || process.env.MCP_TRANSPORT === 'http') {
+    await startHttpServer(createMcpServer);
     return;
   }
 
@@ -2706,6 +2912,7 @@ async function main() {
   }
 
   const transport = new StdioServerTransport();
+  const server = createMcpServer();
   await server.connect(transport);
 
   const googleStatus = hasGoogle ? `${colors.green}✔ Google${colors.reset}` : `${colors.red}✘ Google${colors.reset}`;

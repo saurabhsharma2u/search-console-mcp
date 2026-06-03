@@ -1,6 +1,8 @@
 import { google, pagespeedonline_v5 } from 'googleapis';
+import { existsSync, readFileSync } from 'node:fs';
 
 const pagespeed = google.pagespeedonline('v5');
+let cachedApiKey: string | undefined;
 
 /**
  * Summary of PageSpeed Insights analysis results, including scores and CWV.
@@ -51,7 +53,8 @@ export async function analyzePageSpeed(
     const res = await pagespeed.pagespeedapi.runpagespeed({
         url,
         strategy,
-        category: ['performance', 'accessibility', 'best-practices', 'seo']
+        category: ['performance', 'accessibility', 'best-practices', 'seo'],
+        key: getPageSpeedApiKey()
     });
 
     const data = res.data;
@@ -94,6 +97,28 @@ export async function analyzePageSpeed(
         coreWebVitals,
         loadingExperience
     };
+}
+
+function getPageSpeedApiKey(): string | undefined {
+    if (cachedApiKey !== undefined) return cachedApiKey || undefined;
+
+    const direct = process.env.PAGESPEED_API_KEY || process.env.GOOGLE_WEB_VITALS_API_KEY;
+    if (direct?.trim()) {
+        cachedApiKey = direct.trim();
+        return cachedApiKey;
+    }
+
+    const filePath = process.env.PAGESPEED_API_KEY_FILE
+        || process.env.CRUX_API_KEY_FILE
+        || process.env.GOOGLE_WEB_VITALS_API_KEY_FILE;
+
+    if (filePath && existsSync(filePath)) {
+        cachedApiKey = readFileSync(filePath, 'utf8').trim();
+        return cachedApiKey || undefined;
+    }
+
+    cachedApiKey = '';
+    return undefined;
 }
 
 /**

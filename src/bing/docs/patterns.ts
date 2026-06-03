@@ -23,7 +23,6 @@ Instantly notify Bing of new content using IndexNow (preferred over sitemaps for
 Tool: bing_index_now
 Args: { 
   "host": "www.example.com",
-  "key": "YOUR_KEY",
   "urlList": ["https://www.example.com/new-page"]
 }
 \`\`\`

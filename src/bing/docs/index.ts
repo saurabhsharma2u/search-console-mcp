@@ -105,7 +105,7 @@ IndexNow is a simple way for website owners to instantly inform search engines a
 ## Tool: \`bing_index_now\`
 Arguments:
 - \`host\`: The domain (e.g., \`www.example.com\`).
-- \`key\`: Your generated IndexNow key.
+- \`key\`: Your generated IndexNow key. In tenant HTTP mode this is resolved from server-side tenant configuration and must not be sent by the MCP client.
 - \`keyLocation\` (optional): The URL where the key is hosted if not at the root.
 - \`urlList\`: An array of URLs that have changed.
 

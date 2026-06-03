@@ -1,4 +1,6 @@
 import { AccountConfig, loadConfig, EngineType } from './config.js';
+import { getCurrentTenant } from '../../tenant/context.js';
+import { resolveTenantAccount } from '../../tenant/guard.js';
 
 export interface ResolutionError extends Error {
     code: 'FORBIDDEN' | 'AMBIGUOUS' | 'NOT_FOUND';
@@ -34,6 +36,11 @@ export function normalizeWebsite(site: string): { type: 'domain' | 'url-prefix';
  * Resolves the best account for a given siteUrl and engine.
  */
 export async function resolveAccount(siteUrl: string, engine: EngineType): Promise<AccountConfig> {
+    const tenant = getCurrentTenant();
+    if (tenant) {
+        return resolveTenantAccount(tenant, siteUrl, engine);
+    }
+
     const config = await loadConfig();
     const accounts = Object.values(config.accounts).filter(a => a.engine === engine);
 

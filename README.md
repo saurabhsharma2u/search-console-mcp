@@ -154,6 +154,106 @@ When your AI agent queries a site, the server automatically resolves which accou
 
 ---
 
+## 🏢 Multi-Tenant HTTP Mode
+
+For agency and multi-agent deployments, run the server in tenant mode so a bearer token is authorized before any account resolver can select Google, Bing, or GA4 credentials.
+
+Tenant mode changes the security model from:
+
+```text
+siteUrl -> account resolver -> credentials
+```
+
+to:
+
+```text
+Bearer token -> tenant -> allowed tools/sites/engines -> account resolver -> credentials
+```
+
+### Configuration
+
+```bash
+export MCP_REQUIRE_TENANT_TOKEN=true
+export MCP_PRODUCTION_MODE=true
+export MCP_TENANTS_DIR=/etc/search-console-mcp/tenants
+export MCP_TOKEN_REGISTRY=/etc/search-console-mcp/tokens/tokens.json
+export MCP_BIND_HOST=127.0.0.1
+export MCP_PORT=3001
+
+npx search-console-mcp serve-http
+```
+
+In production mode the HTTP server refuses public wildcard binds such as `0.0.0.0` unless `MCP_ALLOW_PUBLIC_BIND=true` is set explicitly. Bind to localhost, a Tailscale address, or place the endpoint behind a private reverse proxy with access control.
+
+Example tenant file:
+
+```json
+{
+  "tenant_id": "astrogen",
+  "display_name": "Astrogen",
+  "enabled": true,
+  "engines": {
+    "google": {
+      "account_ids": ["google_astrogen"],
+      "allowed_sites": ["sc-domain:astrogen.com.ua"],
+      "default_site": "sc-domain:astrogen.com.ua"
+    },
+    "bing": {
+      "account_ids": [],
+      "allowed_sites": []
+    },
+    "ga4": {
+      "account_ids": [],
+      "allowed_properties": []
+    }
+  },
+  "allowed_tools": ["get_started", "sites_list", "analytics_*", "seo_*", "inspection_*", "pagespeed_*", "schema_validate"],
+  "denied_tools": ["sites_add", "sites_delete", "sitemaps_submit", "sitemaps_delete", "bing_index_now"],
+  "limits": {
+    "max_rows": 25000,
+    "max_batch_urls": 10,
+    "request_timeout_seconds": 120
+  }
+}
+```
+
+Token registry entries store only SHA-256 token hashes:
+
+```json
+{
+  "tokens": [
+    {
+      "token_id": "astrogen-primary",
+      "tenant_id": "astrogen",
+      "token_hash": "sha256:<hex>",
+      "enabled": true
+    }
+  ]
+}
+```
+
+### Tenant CLI
+
+```bash
+npx search-console-mcp tenants list
+npx search-console-mcp tenants validate
+npx search-console-mcp tenants add --tenant=astrogen --site=sc-domain:astrogen.com.ua
+npx search-console-mcp tokens create --tenant=astrogen --description="Astrogen agent"
+npx search-console-mcp tokens revoke --token-id=astrogen-primary
+```
+
+`tokens create` prints the plaintext bearer token once and stores only the hash. Do not reuse shared deployment keys as tenant bearer tokens.
+
+### Tenant Security Notes
+
+* `sites_list` returns only the authenticated tenant's allowlisted sites or properties.
+* Account management and mutating tools are disabled for tenants unless explicitly enabled in tenant configuration.
+* PageSpeed, CrUX, schema validation, and IndexNow are tenant-scoped even though they do not always require Search Console credentials.
+* IndexNow keys should be configured server-side under tenant config and must not be sent as MCP tool arguments in tenant HTTP mode.
+* Logs and MCP errors redact bearer tokens, API keys, token hashes, private keys, and common secret fields.
+
+---
+
 
 ## 🛡️ Fort Knox Security
 

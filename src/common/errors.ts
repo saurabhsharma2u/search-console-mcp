@@ -1,3 +1,5 @@
+import { sanitizeForLog } from '../utils/redaction.js';
+
 /**
  * Error handling utilities for the MCP server
  */
@@ -30,6 +32,18 @@ function getErrorMessage(error: unknown): string {
         // Handle Google API errors
         const anyError = error as any;
 
+        if (anyError.status === 401 || anyError.code === 'UNAUTHORIZED') {
+            return sanitizeForLog(error.message || "Authentication failed.");
+        }
+
+        if (anyError.status === 403 || anyError.code === 'FORBIDDEN') {
+            return sanitizeForLog(error.message || "Forbidden.");
+        }
+
+        if (anyError.status === 404 || anyError.code === 'NOT_FOUND') {
+            return sanitizeForLog(error.message || "Resource not found.");
+        }
+
         // Rate limiting
         if (anyError.code === 429 || anyError.status === 429) {
             return "Rate limit exceeded. Please wait a moment and try again.";
@@ -52,11 +66,11 @@ function getErrorMessage(error: unknown): string {
 
         // Google API error with message
         if (anyError.errors && Array.isArray(anyError.errors) && anyError.errors.length > 0) {
-            return anyError.errors[0].message || error.message;
+            return sanitizeForLog(anyError.errors[0].message || error.message);
         }
 
-        return error.message;
+        return sanitizeForLog(error.message);
     }
 
-    return String(error);
+    return sanitizeForLog(String(error));
 }

@@ -116,7 +116,9 @@ describe('Schema Validator Extended', () => {
         const result = await validateSchema('https://example.com', 'url');
         expect(result.valid).toBe(true);
         expect(result.schemas).toHaveLength(1);
-        expect(mockFetch).toHaveBeenCalledWith('https://example.com');
+        expect(mockFetch).toHaveBeenCalledWith('https://example.com/', expect.objectContaining({
+            redirect: 'follow'
+        }));
     });
 
     it('should handle URL fetch error', async () => {

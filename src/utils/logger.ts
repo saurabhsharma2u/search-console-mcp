@@ -5,6 +5,7 @@
  */
 
 import { colors } from './ui.js';
+import { sanitizeArgs, sanitizeForLog } from './redaction.js';
 
 const isDebugEnabled = process.env.DEBUG === 'true' || process.env.NODE_ENV === 'development';
 
@@ -16,8 +17,8 @@ export const logger = {
         if (isDebugEnabled) {
             const timestamp = new Date().toISOString();
             console.error(
-                `${colors.dim}[${timestamp}]${colors.reset} ${colors.blue}[DEBUG]${colors.reset} ${message}`,
-                ...args
+                `${colors.dim}[${timestamp}]${colors.reset} ${colors.blue}[DEBUG]${colors.reset} ${sanitizeForLog(message)}`,
+                ...sanitizeArgs(args)
             );
         }
     },
@@ -28,8 +29,8 @@ export const logger = {
     error(message: string, error?: any) {
         const timestamp = new Date().toISOString();
         console.error(
-            `${colors.dim}[${timestamp}]${colors.reset} ${colors.red}[ERROR]${colors.reset} ${message}`,
-            error || ''
+            `${colors.dim}[${timestamp}]${colors.reset} ${colors.red}[ERROR]${colors.reset} ${sanitizeForLog(message)}`,
+            error ? sanitizeForLog(error) : ''
         );
     },
 
@@ -39,8 +40,8 @@ export const logger = {
     info(message: string, ...args: any[]) {
         const timestamp = new Date().toISOString();
         console.error(
-            `${colors.dim}[${timestamp}]${colors.reset} ${colors.green}[INFO]${colors.reset} ${message}`,
-            ...args
+            `${colors.dim}[${timestamp}]${colors.reset} ${colors.green}[INFO]${colors.reset} ${sanitizeForLog(message)}`,
+            ...sanitizeArgs(args)
         );
     },
 
@@ -50,8 +51,8 @@ export const logger = {
     warn(message: string, ...args: any[]) {
         const timestamp = new Date().toISOString();
         console.error(
-            `${colors.dim}[${timestamp}]${colors.reset} ${colors.yellow}[WARN]${colors.reset} ${message}`,
-            ...args
+            `${colors.dim}[${timestamp}]${colors.reset} ${colors.yellow}[WARN]${colors.reset} ${sanitizeForLog(message)}`,
+            ...sanitizeArgs(args)
         );
     }
 };
