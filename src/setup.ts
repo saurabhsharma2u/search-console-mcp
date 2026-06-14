@@ -253,12 +253,12 @@ export async function login() {
     const useIndexing = authorizeIndexing.toLowerCase().startsWith('y');
     const scopes = useIndexing
         ? [
-            'https://www.googleapis.com/auth/webmasters.readonly',
+            'https://www.googleapis.com/auth/webmasters',
             'https://www.googleapis.com/auth/indexing',
             'https://www.googleapis.com/auth/userinfo.email'
           ]
         : [
-            'https://www.googleapis.com/auth/webmasters.readonly',
+            'https://www.googleapis.com/auth/webmasters',
             'https://www.googleapis.com/auth/userinfo.email'
           ];
 

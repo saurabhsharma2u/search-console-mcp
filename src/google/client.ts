@@ -6,7 +6,7 @@ import { logger } from '../utils/logger.js';
 const { machineIdSync } = nodeMachineId;
 
 const SCOPES = [
-  'https://www.googleapis.com/auth/webmasters.readonly',
+  'https://www.googleapis.com/auth/webmasters',
   'https://www.googleapis.com/auth/userinfo.email'
 ];
 const SERVICE_NAME = 'io.github.saurabhsharma2u.search-console-mcp';
@@ -114,7 +114,7 @@ let cachedIndexingClientMap: Record<string, any> = {};
 
 /**
  * Get an authenticated client for the Google Indexing API.
- * Uses the `indexing` scope which is separate from the read-only `webmasters.readonly` scope.
+ * Uses the `indexing` scope, which is separate from the `webmasters` scope used by the Search Console client.
  *
  * @param siteUrl - The site URL to resolve the account for.
  * @param accountId - Optional specific account ID to use.
