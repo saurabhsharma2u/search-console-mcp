@@ -2,6 +2,8 @@
 
 # 🔍 Search Console MCP
 
+[![MCP Toplist](https://mcptoplist.com/badge/io.github.saurabhsharma2u%2Fsearch-console-mcp.svg)](https://mcptoplist.com/server/io.github.saurabhsharma2u%2Fsearch-console-mcp)
+
 **Google Search Console + Bing Webmaster Tools + GA4 — in one context window.**
 
 Stop exporting CSVs. Start asking your AI agent questions.
