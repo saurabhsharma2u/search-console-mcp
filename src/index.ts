@@ -341,8 +341,6 @@ registerTool(
   healthFluent.compareEnginesHandler
 );
 
-registerPrompts(server);
-
 registerTool(
   "diagnostics",
   "Run connectivity diagnostics for all connected accounts. Use this to troubleshoot '0 results' or authentication issues.",
@@ -370,28 +368,6 @@ registerTool(
   }
   return await registeredTool.handler(request.params.arguments);
 });
-
-registerPrompts(server);
-
-registerTool(
-  "analytics_anomalies",
-  "Identify unusual daily spikes or drops in traffic.",
-  {
-    siteUrl: z.string().describe("The URL of the site"),
-    days: z.number().optional().describe("Number of days to look back for baseline (default: 30)"),
-    threshold: z.number().optional().describe("Sensitivity threshold (Standard Deviations, default: 2.5)")
-  },
-  async ({ siteUrl, days, threshold }) => {
-    try {
-      const result = await analytics.detectAnomalies(siteUrl, { days, threshold });
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-      };
-    } catch (error) {
-      return formatError(error);
-    }
-  }
-);
 
 registerTool(
   "analytics_drop_attribution",
@@ -456,29 +432,6 @@ registerTool(
 
 // Inspection Tools
 registerTool(
-  "inspection_inspect",
-  "Inspect a URL to check its indexing status, crawl info, and health",
-  {
-    siteUrl: z.string().describe("The URL of the property"),
-    inspectionUrl: z.string().describe("The fully-qualified URL to inspect"),
-    languageCode: z.string().optional().describe("Language code for localized results (Google only)"),
-    engine: z.enum(["google", "bing"]).optional().describe("The search engine (default: google)")
-  },
-  async ({ siteUrl, inspectionUrl, languageCode, engine = "google" }) => {
-    try {
-      const result = engine === "google"
-        ? await inspection.inspectUrl(siteUrl, inspectionUrl, languageCode)
-        : await bingInspection.getUrlInfo(siteUrl, inspectionUrl);
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-      };
-    } catch (error) {
-      return formatError(error);
-    }
-  }
-);
-
-registerTool(
   "inspection_batch",
   "Inspect multiple URLs for a site in batch",
   {
@@ -507,25 +460,6 @@ registerTool(
 );
 
 // PageSpeed Insights Tools
-registerTool(
-  "pagespeed_analyze",
-  "Run PageSpeed Insights analysis on a URL to get performance, accessibility, best practices, and SEO scores",
-  {
-    url: z.string().describe("The URL to analyze"),
-    strategy: z.enum(["mobile", "desktop"]).optional().describe("Device strategy (default: mobile)")
-  },
-  async ({ url, strategy }) => {
-    try {
-      const result = await pagespeed.analyzePageSpeed(url, strategy || 'mobile');
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-      };
-    } catch (error) {
-      return formatError(error);
-    }
-  }
-);
-
 registerTool(
   "pagespeed_core_web_vitals",
   "Get Core Web Vitals for both mobile and desktop including LCP, FID, CLS, FCP, TTI, and TBT",
@@ -865,26 +799,6 @@ registerTool(
     return {
       content: [{ type: "text", text: JSON.stringify(seoPrimitives.isCannibalized(query, pageA, pageB), null, 2) }]
     };
-  }
-);
-
-// Schema Validator Tools
-registerTool(
-  "schema_validate",
-  "Validate Schema.org structured data (JSON-LD) from a URL, HTML snippet, or JSON object.",
-  {
-    type: z.enum(["url", "html", "json"]).describe("The type of input provided"),
-    data: z.string().describe("The URL, HTML content, or JSON string to validate")
-  },
-  async ({ type, data }) => {
-    try {
-      const result = await schemaValidator.validateSchema(data, type as 'url' | 'html' | 'json');
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-      };
-    } catch (error) {
-      return formatError(error);
-    }
   }
 );
 
@@ -1349,25 +1263,6 @@ registerTool(
   async ({ siteUrl, url }) => {
     try {
       const result = await googleIndexing.publishNotification(siteUrl, url, 'URL_DELETED');
-      return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
-      };
-    } catch (error) {
-      return formatError(error);
-    }
-  }
-);
-
-registerTool(
-  "indexing_status",
-  "Check the notification status for a URL previously submitted to the Google Indexing API",
-  {
-    siteUrl: z.string().describe("The property URL as registered in Search Console"),
-    url: z.string().describe("The URL to check notification status for")
-  },
-  async ({ siteUrl, url }) => {
-    try {
-      const result = await googleIndexing.getNotificationStatus(siteUrl, url);
       return {
         content: [{ type: "text", text: JSON.stringify(result, null, 2) }]
       };
@@ -2443,25 +2338,6 @@ If any site has a 'critical' or 'warning' status:
         }
       }]
     };
-  }
-);
-
-registerPrompts(server);
-
-// Diagnostics Tool
-registerTool(
-  "diagnostics",
-  "Run connectivity diagnostics for all connected accounts. Use this to troubleshoot '0 results' or authentication issues.",
-  {},
-  async () => {
-    try {
-      const results = await runDiagnostics();
-      return {
-        content: [{ type: "text", text: JSON.stringify(results, null, 2) }]
-      };
-    } catch (error) {
-      return formatError(error);
-    }
   }
 );
 
