@@ -109,3 +109,22 @@ export async function executeLegacyFallback(name: string, args: any): Promise<an
   if (!handler) return null;
   return await handler(args);
 }
+
+/**
+ * Decide whether a CallTool request should be served by the legacy fallback map.
+ *
+ * A registered tool always wins. Several legacy keys share a name with a modern
+ * tool but accept a different argument shape (for example `inspection_inspect`
+ * reads a singular `url` while the registered tool takes a `urls` array, and the
+ * analytics/sites/sitemaps shims hardcode `engine: "google"`). Consulting the
+ * fallback map first would route those calls to a handler that silently drops or
+ * misreads the caller's arguments.
+ *
+ * @param toolName - The requested tool name.
+ * @param isRegistered - Whether a tool of that name is registered on the server.
+ * @returns True when the legacy shim should handle the request.
+ */
+export function shouldUseLegacyFallback(toolName: string, isRegistered: boolean): boolean {
+  if (isRegistered) return false;
+  return Boolean(legacyFallbackMap[toolName]);
+}

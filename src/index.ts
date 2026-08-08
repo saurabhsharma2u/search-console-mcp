@@ -71,7 +71,7 @@ import * as inspectionFluent from "./tools/fluent/inspection.js";
 import * as indexingFluent from "./tools/fluent/indexing.js";
 import * as seoFluent from "./tools/fluent/seo.js";
 import * as healthFluent from "./tools/fluent/health.js";
-import { executeLegacyFallback, legacyFallbackMap } from "./legacy/fallback-router.js";
+import { executeLegacyFallback, legacyFallbackMap, shouldUseLegacyFallback } from "./legacy/fallback-router.js";
 import { CallToolRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 
 
@@ -357,14 +357,20 @@ registerTool(
   }
 );
 
-// Internal silent fallback router interceptor for CallTool requests
+// Internal silent fallback router interceptor for CallTool requests.
+//
+// Registered tools take priority. Ten legacy keys share a name with a modern
+// tool, and the legacy shims accept a different argument shape, so checking the
+// fallback map first left those tools permanently calling the wrong handler
+// with mangled arguments. Legacy names are aliases only for tools that are not
+// registered under the current schema.
 (server.server as any).setRequestHandler(CallToolRequestSchema, async (request: any, extra: any) => {
   const toolName = request.params.name;
-  if (legacyFallbackMap[toolName]) {
+  const registeredTool = (server as any)._registeredTools[toolName];
+  if (shouldUseLegacyFallback(toolName, Boolean(registeredTool))) {
     const legacyResult = await executeLegacyFallback(toolName, request.params.arguments);
     if (legacyResult) return legacyResult;
   }
-  const registeredTool = (server as any)._registeredTools[toolName];
   if (!registeredTool) {
     throw new Error(`Tool ${toolName} not found`);
   }
