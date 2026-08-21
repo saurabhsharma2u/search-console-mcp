@@ -1,4 +1,4 @@
-import { google, searchconsole_v1 } from 'googleapis';
+import type { searchconsole_v1 } from 'googleapis';
 import nodeMachineId from 'node-machine-id';
 import { AccountConfig, loadConfig, saveConfig, updateAccount, removeAccount } from '../common/auth/config.js';
 import { resolveAccount } from '../common/auth/resolver.js';
@@ -21,6 +21,7 @@ export const DEFAULT_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'GOCSPX
 let cachedClientMap: Record<string, searchconsole_v1.Searchconsole> = {};
 
 export async function getSearchConsoleClient(siteUrl?: string, accountId?: string): Promise<searchconsole_v1.Searchconsole> {
+  const { google } = await import('googleapis');
   // 1. Resolve Account
   let account: AccountConfig;
   if (accountId) {
@@ -121,6 +122,7 @@ let cachedIndexingClientMap: Record<string, any> = {};
  * @returns An authenticated OAuth2 client with the indexing scope.
  */
 export async function getIndexingClient(siteUrl?: string, accountId?: string): Promise<any> {
+  const { google } = await import('googleapis');
   // 1. Resolve Account
   let account: AccountConfig;
   if (accountId) {
@@ -205,6 +207,7 @@ export async function getIndexingClient(siteUrl?: string, accountId?: string): P
 }
 
 export async function getUserEmail(tokens: any): Promise<string> {
+  const { google } = await import('googleapis');
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID || DEFAULT_CLIENT_ID,
     process.env.GOOGLE_CLIENT_SECRET || DEFAULT_CLIENT_SECRET

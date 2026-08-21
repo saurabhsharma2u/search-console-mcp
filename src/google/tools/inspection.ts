@@ -1,5 +1,5 @@
 import { getSearchConsoleClient } from '../client.js';
-import { searchconsole_v1 } from 'googleapis';
+import type { searchconsole_v1 } from 'googleapis';
 import { limitConcurrency } from '../../common/concurrency.js';
 import { resolveSiteProperty, resolveFullWebUrl } from '../../common/auth/resolver.js';
 

@@ -1,5 +1,4 @@
-import { BetaAnalyticsDataClient } from '@google-analytics/data';
-import { google } from 'googleapis';
+import type { BetaAnalyticsDataClient } from '@google-analytics/data';
 import { AccountConfig, loadConfig } from '../common/auth/config.js';
 import { resolveAccount } from '../common/auth/resolver.js';
 import { loadTokensForAccount, saveTokensForAccount, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET } from '../google/client.js';
@@ -50,6 +49,8 @@ export function clearGA4ClientCache() {
 }
 
 export async function getGA4Client(propertyId?: string, accountId?: string): Promise<GA4Client> {
+    const { BetaAnalyticsDataClient } = await import('@google-analytics/data');
+    const { google } = await import('googleapis');
     // 1. Resolve Account
     let account: AccountConfig | undefined;
     const config = await loadConfig();

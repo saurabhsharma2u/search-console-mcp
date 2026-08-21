@@ -1,5 +1,5 @@
 import { getSearchConsoleClient } from '../client.js';
-import { searchconsole_v1 } from 'googleapis';
+import type { searchconsole_v1 } from 'googleapis';
 import { logger } from '../../utils/logger.js';
 import { resolveSiteProperty } from '../../common/auth/resolver.js';
 

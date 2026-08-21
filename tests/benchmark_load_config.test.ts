@@ -5,6 +5,7 @@ import * as os from 'os';
 
 // Mock node-machine-id
 vi.mock('node-machine-id', () => ({
+    machineId: () => Promise.resolve('benchmark-machine-id'),
     default: {
         machineIdSync: () => 'benchmark-machine-id'
     }

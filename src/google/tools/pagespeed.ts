@@ -1,7 +1,5 @@
-import { google, pagespeedonline_v5 } from 'googleapis';
+import type { pagespeedonline_v5 } from 'googleapis';
 import { resolveFullWebUrl } from '../../common/auth/resolver.js';
-
-const pagespeed = google.pagespeedonline('v5');
 
 /**
  * Returns the PageSpeed API key from environment, if configured.
@@ -57,6 +55,8 @@ export async function analyzePageSpeed(
     url: string,
     strategy: 'mobile' | 'desktop' = 'mobile'
 ): Promise<PageSpeedResult> {
+    const { google } = await import('googleapis');
+    const pagespeed = google.pagespeedonline('v5');
     const fullUrl = resolveFullWebUrl(url);
     const key = getApiKey();
     let res;

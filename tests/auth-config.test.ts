@@ -11,6 +11,7 @@ vi.mock('fs', () => ({
 }));
 
 vi.mock('node-machine-id', () => ({
+    machineId: vi.fn().mockResolvedValue('test-machine-id'),
     default: {
         machineIdSync: vi.fn(() => 'test-machine-id'),
     }

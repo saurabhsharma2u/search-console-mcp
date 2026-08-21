@@ -8,7 +8,6 @@ import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { startLocalFlow, getUserEmail, logout, getSearchConsoleClient, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, saveTokensForAccount } from './google/client.js';
 import { getBingClient, BingClient } from './bing/client.js';
-import { google } from 'googleapis';
 import { loadConfig, updateAccount, AccountConfig } from './common/auth/config.js';
 import { colors, printBoxHeader, printStatusLine } from './utils/ui.js';
 
@@ -53,6 +52,7 @@ function printInfo(text: string) {
 async function selectGA4Property(auth: any): Promise<string | undefined> {
     printInfo('Fetching available GA4 properties...');
     try {
+        const { google } = await import('googleapis');
         const admin = google.analyticsadmin('v1beta');
         const response = await admin.accountSummaries.list({ auth });
 
@@ -274,6 +274,7 @@ export async function login() {
         console.log(`\nAuthorized as: ${colors.bold}${email}${colors.reset}`);
 
         // Fetch and select websites
+        const { google } = await import('googleapis');
         const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
         oauth2Client.setCredentials(tokens);
         const gClient = google.searchconsole({ version: 'v1', auth: oauth2Client });
@@ -760,6 +761,7 @@ async function setupGA4ServiceAccount() {
 
     await ask('Press Enter when you\'ve added the service account to GA4...');
 
+    const { google } = await import('googleapis');
     const auth = new google.auth.GoogleAuth({
         keyFile: keyPath,
         scopes: ['https://www.googleapis.com/auth/analytics.readonly']
@@ -814,6 +816,7 @@ async function setupGA4OAuth() {
         const email = await getUserEmail(tokens);
         console.log(`\nAuthorized as: ${colors.bold}${email}${colors.reset}`);
 
+        const { google } = await import('googleapis');
         const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
         oauth2Client.setCredentials(tokens);
 

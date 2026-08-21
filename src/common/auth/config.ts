@@ -1,10 +1,11 @@
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { createCipheriv, createDecipheriv, scryptSync, randomBytes } from 'crypto';
-import nodeMachineId from 'node-machine-id';
+import { createCipheriv, createDecipheriv, scrypt, randomBytes } from 'crypto';
+import { promisify } from 'util';
+import { machineId } from 'node-machine-id';
 
-const { machineIdSync } = nodeMachineId;
+const scryptAsync = promisify(scrypt);
 
 const CONFIG_PATH = join(homedir(), '.search-console-mcp-config.enc');
 const LEGACY_TOKEN_PATH = join(homedir(), '.search-console-mcp-tokens.enc');
@@ -45,19 +46,19 @@ export function resetConfigCache() {
     cachedEncryptionKey = null;
 }
 
-function getEncryptionKey(): Buffer {
+async function getEncryptionKey(): Promise<Buffer> {
     if (cachedEncryptionKey) {
         return cachedEncryptionKey;
     }
-    const mId = machineIdSync();
+    const mId = await machineId(false);
     const salt = process.env.USER || 'sc-mcp-salt';
-    cachedEncryptionKey = scryptSync(mId, salt, 32);
+    cachedEncryptionKey = (await scryptAsync(mId, salt, 32)) as Buffer;
     return cachedEncryptionKey;
 }
 
-function encrypt(text: string): string {
+async function encrypt(text: string): Promise<string> {
     const iv = randomBytes(12);
-    const key = getEncryptionKey();
+    const key = await getEncryptionKey();
     const cipher = createCipheriv(ENCRYPTION_ALGORITHM, key, iv);
     let encrypted = cipher.update(text, 'utf8', 'hex');
     encrypted += cipher.final('hex');
@@ -65,11 +66,11 @@ function encrypt(text: string): string {
     return `${iv.toString('hex')}:${authTag}:${encrypted}`;
 }
 
-function decrypt(data: string): string {
+async function decrypt(data: string): Promise<string> {
     const [ivHex, authTagHex, encryptedHex] = data.split(':');
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
-    const key = getEncryptionKey();
+    const key = await getEncryptionKey();
     const decipher = createDecipheriv(ENCRYPTION_ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);
     let decrypted = decipher.update(encryptedHex, 'hex', 'utf8');
@@ -91,7 +92,7 @@ export async function loadConfig(): Promise<AppConfig> {
     if (existsSync(CONFIG_PATH)) {
         try {
             const encryptedData = readFileSync(CONFIG_PATH, 'utf-8');
-            const decrypted = decrypt(encryptedData);
+            const decrypted = await decrypt(encryptedData);
             config = JSON.parse(decrypted);
         } catch (e) {
             console.error('Failed to load unified config:', (e as Error).message);
@@ -102,7 +103,7 @@ export async function loadConfig(): Promise<AppConfig> {
     if (existsSync(LEGACY_TOKEN_PATH)) {
         try {
             const encryptedData = readFileSync(LEGACY_TOKEN_PATH, 'utf-8');
-            const decrypted = decrypt(encryptedData);
+            const decrypted = await decrypt(encryptedData);
             const googleTokens = JSON.parse(decrypted);
 
             for (const [email, tokens] of Object.entries(googleTokens)) {
@@ -185,7 +186,7 @@ export async function loadConfig(): Promise<AppConfig> {
 
 export async function saveConfig(config: AppConfig) {
     try {
-        const encrypted = encrypt(JSON.stringify(config));
+        const encrypted = await encrypt(JSON.stringify(config));
         writeFileSync(CONFIG_PATH, encrypted, { mode: 0o600 });
         cachedConfig = config;
     } catch (e) {
