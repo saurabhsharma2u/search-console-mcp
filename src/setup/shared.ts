@@ -27,11 +27,15 @@ const pkgVersion = (() => {
 })();
 
 /**
- * Minimal branded banner — replaces the old ASCII box.
+ * Branded banner: wordmark + tagline (option B).
+ * The tagline does real work — the product name alone undersells the
+ * Bing/GA4/AdSense scope to every first-time user.
  */
 export function printBanner() {
     log('');
-    log(`${colors.cyan}◆${colors.reset} ${colors.bold}search-console-mcp${colors.reset}${colors.dim} · setup${pkgVersion ? ` · v${pkgVersion}` : ''}`);
+    log(`  ${colors.bold}${colors.cyan}⌗ search-console-mcp${colors.reset}`);
+    log(`  ${colors.dim}One MCP server · GSC + Bing + GA4 + AdSense${colors.reset}`);
+    log(`  ${colors.dim}setup${pkgVersion ? ` · v${pkgVersion}` : ''}${colors.reset}`);
     log('');
 }
 
