@@ -6,10 +6,10 @@ import { startLocalFlow, getUserEmail, logout, getSearchConsoleClient, DEFAULT_C
 import { prompts, withSpinner, CancelledError } from '../../utils/prompts.js';
 import { validateAlias, validateKeyFilePath } from '../../utils/validation.js';
 import { colors } from '../../utils/ui.js';
-import { ConfigStatus, log, printHeader, printStep, printSuccess, printError, printInfo, showMcpConfigSnippet, supportProject, validateKeyFile, testConnection } from '../shared.js';
+import { ConfigStatus, log, printBanner, printStep, printSuccess, printError, printInfo, showMcpConfigSnippet, supportProject, validateKeyFile, testConnection } from '../shared.js';
 
 export async function runLogout() {
-    printHeader();
+    printBanner();
     printInfo('Logging out and clearing secure credentials...');
 
     // Get email from CLI args if provided: search-console-mcp logout user@gmail.com
@@ -35,7 +35,7 @@ function displaySiteUrl(siteUrl: string): string {
 }
 
 export async function login() {
-    printHeader();
+    printBanner();
     printStep(1, 'Browser Authorization');
 
     log('Using Secure Desktop Flow.');

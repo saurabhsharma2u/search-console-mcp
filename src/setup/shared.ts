@@ -3,7 +3,7 @@ import { resolve, dirname } from 'path';
 import { homedir } from 'os';
 import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
-import { colors, printBoxHeader, printStatusLine } from '../utils/ui.js';
+import { colors, printStatusLine } from '../utils/ui.js';
 import { prompts, withSpinner } from '../utils/prompts.js';
 import { validateKeyFilePath, parseServiceAccountKey, ServiceAccountKey } from '../utils/validation.js';
 import { loadConfig, saveConfig } from '../common/auth/config.js';
@@ -17,8 +17,22 @@ export function log(text: string) {
     console.error(text);
 }
 
-export function printHeader() {
-    printBoxHeader('Setup Wizard');
+const pkgVersion = (() => {
+    try {
+        const pkgPath = resolve(dirname(fileURLToPath(import.meta.url)), '../../package.json');
+        return JSON.parse(readFileSync(pkgPath, 'utf8')).version || '';
+    } catch {
+        return '';
+    }
+})();
+
+/**
+ * Minimal branded banner — replaces the old ASCII box.
+ */
+export function printBanner() {
+    log('');
+    log(`${colors.cyan}◆${colors.reset} ${colors.bold}search-console-mcp${colors.reset}${colors.dim} · setup${pkgVersion ? ` · v${pkgVersion}` : ''}`);
+    log('');
 }
 
 export function printStep(num: number, text: string) {
@@ -65,6 +79,24 @@ export function isAnyAccountConfigured(status: ConfigStatus): boolean {
         status.ga4Accounts.length > 0 ||
         status.adsenseAccounts.length > 0 ||
         status.legacyBing;
+}
+
+/**
+ * Compact one-line connection summary (replaces the old multi-line status list —
+ * per-platform state now lives in the menu itself via colored dots).
+ */
+export function printSummaryLine(status: ConfigStatus, total = 5) {
+    const connected = [
+        status.googleAccounts.length > 0,
+        status.ga4Accounts.length > 0,
+        status.bingAccounts.length > 0 || status.legacyBing,
+        status.adsenseAccounts.length > 0,
+        status.pagespeedApiKey,
+    ].filter(Boolean).length;
+
+    if (connected === 0) return;
+
+    log(`${colors.dim}${connected} of ${total} integrations connected${colors.reset}\n`);
 }
 
 export function printDetectionSummary(results: ConfigStatus) {

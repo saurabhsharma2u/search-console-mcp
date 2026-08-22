@@ -13,6 +13,8 @@ export interface DiagnosticResult {
 
 /**
  * Runs a set of diagnostic checks to verify API connectivity and account health.
+ * Covers all configured engines (google, bing, ga4, adsense) plus the
+ * optional PageSpeed API key.
  */
 export async function runDiagnostics(): Promise<DiagnosticResult[]> {
     const config = await loadConfig();
@@ -48,8 +50,37 @@ export async function runDiagnostics(): Promise<DiagnosticResult[]> {
                     message: `Successfully connected. Account has access to ${res.length} sites.`,
                     details: { sitesCount: res.length }
                 });
+            } else if (account.engine === 'ga4') {
+                const { getGA4Client } = await import('../ga4/client.js');
+                const client = await getGA4Client(undefined, account.id);
+                // Minimal billable-free read: 1 row, today's active users
+                await client.runReport({
+                    dateRanges: [{ startDate: 'today', endDate: 'today' }],
+                    metrics: [{ name: 'activeUsers' }],
+                    limit: 1
+                });
+                results.push({
+                    engine: 'ga4',
+                    account: account.alias,
+                    status: 'ok',
+                    message: `Successfully connected to property ${account.ga4PropertyId}.`
+                });
+            } else if (account.engine === 'adsense') {
+                const { getAdsenseClient } = await import('../adsense/client.js');
+                const client = await getAdsenseClient(account.id);
+                // Minimal report read: 1 row, earnings only
+                await client.generateReport({
+                    dateRange: 'LAST_7_DAYS',
+                    metrics: ['ESTIMATED_EARNINGS'],
+                    limit: 1
+                } as any);
+                results.push({
+                    engine: 'adsense',
+                    account: account.alias,
+                    status: 'ok',
+                    message: `Successfully connected to publisher ${account.adsenseAccountId}.`
+                });
             }
-            // Add GA4 diagnostics if needed
         } catch (e) {
             const error = e as Error;
             logger.error(`Diagnostic failed for ${account.alias}: ${error.message}`);
@@ -62,7 +93,16 @@ export async function runDiagnostics(): Promise<DiagnosticResult[]> {
         }
     }
 
-    if (accounts.length === 0) {
+    if (process.env.PAGESPEED_API_KEY) {
+        results.push({
+            engine: 'pagespeed',
+            account: 'api-key',
+            status: 'ok',
+            message: 'API key configured.'
+        });
+    }
+
+    if (results.length === 0) {
         results.push({
             engine: 'system',
             account: 'none',

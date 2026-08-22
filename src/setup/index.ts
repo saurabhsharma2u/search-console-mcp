@@ -3,14 +3,20 @@ import { prompts, CancelledError, InteractiveRequiredError } from '../utils/prom
 import { colors } from '../utils/ui.js';
 import { FLOWS } from './registry.js';
 import {
-    log, printHeader, printInfo, printError,
-    detectConfig, isAnyAccountConfigured, printDetectionSummary
+    log, printBanner, printInfo, printError,
+    detectConfig, isAnyAccountConfigured, printSummaryLine
 } from './shared.js';
 
 const VALID_ENGINES = [...FLOWS.map(f => f.id)];
 
-function statusHint(configured: boolean): string | undefined {
-    return configured ? 'connected — select to reconfigure' : undefined;
+function menuLabel(flow: (typeof FLOWS)[number], configured: boolean): string {
+    const dot = configured ? `${colors.green}●${colors.reset}` : `${colors.dim}○${colors.reset}`;
+    const suffix = configured ? `${colors.dim} · connected${colors.reset}` : '';
+    return `${dot} ${flow.label}${suffix}`;
+}
+
+function statusHint(configured: boolean, flow: (typeof FLOWS)[number]): string | undefined {
+    return configured ? 'select to reconfigure' : flow.description;
 }
 
 export async function main() {
@@ -66,13 +72,13 @@ export async function main() {
         return;
     }
 
-    printHeader();
+    printBanner();
 
     if (!isAnyAccountConfigured(configStatus)) {
         log(`${colors.bold}Welcome! No data sources are connected yet.${colors.reset}`);
         log(`Let's connect your first platform. You can add more anytime by re-running ${colors.cyan}search-console-mcp setup${colors.reset}.\n`);
     } else {
-        printDetectionSummary(configStatus);
+        printSummaryLine(configStatus, FLOWS.length);
     }
 
     while (true) {
@@ -84,13 +90,13 @@ export async function main() {
             choice = await prompts.select('What would you like to configure?', [
                 ...primary.map(f => ({
                     value: f.id,
-                    label: f.label,
-                    hint: statusHint(f.isConfigured(configStatus)) ?? f.description,
+                    label: menuLabel(f, f.isConfigured(configStatus)),
+                    hint: statusHint(f.isConfigured(configStatus), f),
                 })),
                 ...advanced.map(f => ({
                     value: f.id,
-                    label: f.label,
-                    hint: statusHint(f.isConfigured(configStatus)) ?? f.description,
+                    label: menuLabel(f, f.isConfigured(configStatus)),
+                    hint: statusHint(f.isConfigured(configStatus), f),
                 })),
                 { value: '__diagnostics', label: 'Run diagnostics', hint: 'Check the health of configured platforms' },
                 { value: '__exit', label: 'Exit' },
