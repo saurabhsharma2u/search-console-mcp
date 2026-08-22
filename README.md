@@ -22,7 +22,7 @@ Stop exporting CSVs. Start asking your AI agent questions.
 
 ## ⚡ What's New
 
-* 💰 **Google AdSense Integration**: Earnings reports, payments and account alerts via `setup --engine=adsense` (read-only OAuth, zero re-consent for existing accounts).
+* 💰 **Google AdSense Integration**: Earnings reports, payments and account alerts via `setup --engine=adsense`. Enabling AdSense requires you to approve a separate `adsense.readonly` OAuth scope; your existing GSC, Bing, and GA4 configuration remains unchanged until you opt in.
 * 📦 **MCPB One-Click Bundle Support (`.mcpb`)**: Drag and drop bundle installation for Claude Desktop.
 * ⚡ **Parallel Fetch Engine (`engine: "all"`)**: Multi-engine queries fetch Google, Bing, and GA4 concurrently with **50%+ lower latency**.
 * 🔄 **100% Backward Compatibility**: All ~96 legacy tool names continue to work seamlessly via our fallback router. [Read Backward Compatibility Guide →](https://searchconsolemcp.saurabh.app/concepts/backward-compatibility)
