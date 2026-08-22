@@ -1,12 +1,11 @@
 import { resolve } from 'path';
-import { homedir } from 'os';
 import { google } from 'googleapis';
 import { AccountConfig, loadConfig, updateAccount } from '../../common/auth/config.js';
 import { startLocalFlow, getUserEmail, logout, getSearchConsoleClient, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, saveTokensForAccount } from '../../google/client.js';
 import { prompts, withSpinner, CancelledError } from '../../utils/prompts.js';
-import { validateAlias, validateKeyFilePath } from '../../utils/validation.js';
+import { validateAlias } from '../../utils/validation.js';
 import { colors } from '../../utils/ui.js';
-import { ConfigStatus, log, printBanner, printStep, printSuccess, printError, printInfo, showMcpConfigSnippet, supportProject, validateKeyFile, testConnection } from '../shared.js';
+import { ConfigStatus, log, printBanner, printStep, printSuccess, printError, printInfo, showMcpConfigSnippet, supportProject, acquireServiceAccountKey, testConnection } from '../shared.js';
 
 export async function runLogout() {
     printBanner();
@@ -135,29 +134,23 @@ export async function pickSites(sites: string[], message: string): Promise<strin
 }
 
 async function setupServiceAccount() {
-    printStep(1, 'Locate your service account JSON key file');
+    printStep(1, 'Provide your service account JSON key');
 
-    log('If you don\'t have one yet, follow these steps:');
+    log("If you don't have one yet, follow these steps:");
     log('  1. Go to https://console.cloud.google.com/iam-admin/serviceaccounts');
     log('  2. Create a new service account (or select existing)');
     log('  3. Click "Keys" > "Add Key" > "Create new key" > "JSON"');
     log('  4. Save the downloaded JSON file\n');
 
-    const keyPath = await prompts.text('Enter the path to your JSON key file:', {
-        validate: (v) => {
-            if (!v.trim()) return 'Please provide a path to your JSON key file.';
-            return validateKeyFilePath(v);
-        }
-    });
-
-    const key = validateKeyFile(keyPath);
-    if (!key) {
+    const acquired = await acquireServiceAccountKey();
+    if (!acquired) {
+        printError('No credentials file provided.');
         process.exit(1);
     }
 
-    printSuccess('JSON key file is valid!');
+    const { key, path: credentialsPath } = acquired;
+    printSuccess('JSON key is valid!');
     const serviceAccountEmail = key.client_email;
-    const credentialsPath = resolve(keyPath.replace('~', homedir()));
 
     printStep(2, 'Add service account to Google Search Console');
     log('You need to add this email as a user in Google Search Console:\n');

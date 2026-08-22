@@ -54,20 +54,31 @@ export function validateKeyFilePath(value: string): string | undefined {
 export function parseServiceAccountKey(fullPath: string): { key?: ServiceAccountKey; error?: string } {
     try {
         const content = readFileSync(fullPath, 'utf8');
-        let parsed: any;
-        try {
-            parsed = JSON.parse(content);
-        } catch {
-            return { error: 'File does not contain valid JSON.' };
-        }
-        for (const field of REQUIRED_KEY_FIELDS) {
-            if (!(field in parsed)) return { error: `Missing required field '${field}' — is this a service account key?` };
-        }
-        if (parsed.type !== 'service_account') return { error: `Expected type 'service_account', got '${parsed.type}'.` };
-        return { key: parsed as ServiceAccountKey };
+        return parseServiceAccountJson(content);
     } catch (e) {
         return { error: `Could not read file: ${(e as Error).message}` };
     }
+}
+
+/**
+ * Parses pasted or file-loaded service account JSON content.
+ * Tolerates surrounding whitespace/newlines from terminal paste.
+ */
+export function parseServiceAccountJson(content: string): { key?: ServiceAccountKey; error?: string } {
+    let parsed: any;
+    try {
+        parsed = JSON.parse(content.trim());
+    } catch {
+        return { error: 'Content is not valid JSON. Paste the entire key file contents.' };
+    }
+    if (typeof parsed !== 'object' || parsed === null) {
+        return { error: 'Content is not a JSON object.' };
+    }
+    for (const field of REQUIRED_KEY_FIELDS) {
+        if (!(field in parsed)) return { error: `Missing required field '${field}' — is this a service account key?` };
+    }
+    if (parsed.type !== 'service_account') return { error: `Expected type 'service_account', got '${parsed.type}'.` };
+    return { key: parsed as ServiceAccountKey };
 }
 
 function extname(p: string): string {

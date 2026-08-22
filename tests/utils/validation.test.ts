@@ -3,7 +3,7 @@ import { writeFileSync, mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
 import {
     validateAlias, validateEmail, validateKeyFilePath,
-    parseServiceAccountKey,
+    parseServiceAccountKey, parseServiceAccountJson,
 } from '../../src/utils/validation.js';
 
 const tmpDir = '/var/folders/0n/hb8kpk3j23l484zmf_pp7cc40000gn/T/opencode/validation-test';
@@ -91,5 +91,34 @@ describe('validation helpers', () => {
             expect(error).toBeUndefined();
             expect(key?.client_email).toBe('sa@test.com');
         });
+    });
+});
+
+describe('parseServiceAccountJson (pasted content)', () => {
+    const fullKey = {
+        type: 'service_account',
+        project_id: 'p',
+        private_key_id: 'pkid',
+        private_key: 'pk',
+        client_email: 'sa@test.com',
+        client_id: 'cid',
+        auth_uri: 'https://auth',
+        token_uri: 'https://token'
+    };
+
+    it('parses compact pasted JSON', () => {
+        const { key, error } = parseServiceAccountJson(JSON.stringify(fullKey));
+        expect(error).toBeUndefined();
+        expect(key?.client_email).toBe('sa@test.com');
+    });
+
+    it('tolerates surrounding whitespace/newlines from terminal paste', () => {
+        const { key, error } = parseServiceAccountJson('\n  ' + JSON.stringify(fullKey) + '\n');
+        expect(error).toBeUndefined();
+        expect(key?.type).toBe('service_account');
+    });
+
+    it('rejects non-JSON paste', () => {
+        expect(parseServiceAccountJson('oops').error).toMatch(/not valid JSON/);
     });
 });

@@ -1,11 +1,15 @@
-import { existsSync, readFileSync } from 'fs';
-import { resolve, dirname } from 'path';
+import { existsSync, readFileSync, mkdirSync, writeFileSync, chmodSync } from 'fs';
+import { resolve, dirname, join } from 'path';
 import { homedir } from 'os';
 import { execSync } from 'child_process';
+import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
 import { colors, printStatusLine } from '../utils/ui.js';
 import { prompts, withSpinner } from '../utils/prompts.js';
-import { validateKeyFilePath, parseServiceAccountKey, ServiceAccountKey } from '../utils/validation.js';
+import {
+    validateKeyFilePath, parseServiceAccountKey, parseServiceAccountJson,
+    ServiceAccountKey,
+} from '../utils/validation.js';
 import { loadConfig, saveConfig } from '../common/auth/config.js';
 
 /**
@@ -141,6 +145,71 @@ export function validateKeyFile(path: string): ServiceAccountKey | null {
     return key;
 }
 
+/**
+ * Unified service account key acquisition: enter a file path OR paste the
+ * JSON content directly. Pasted keys are persisted to
+ * `~/.search-console-mcp/keys/` with 0600 permissions.
+ *
+ * Returns null if the user gives up.
+ */
+export async function acquireServiceAccountKey(): Promise<{ key: ServiceAccountKey; path: string } | null> {
+    while (true) {
+        let result: { key: ServiceAccountKey; path: string } | null = null;
+        try {
+            const method = await prompts.select('How would you like to provide the service account key?', [
+                { value: 'path', label: 'Enter a file path', hint: 'Key downloaded from Google Cloud Console' },
+                { value: 'paste', label: 'Paste the JSON content', hint: 'Paste the key file contents directly (compact JSON works best)' },
+            ]);
+
+            if (method === 'path') {
+                const keyPath = await prompts.text('Enter the path to your JSON key file:', {
+                    validate: validateKeyFilePath,
+                });
+                const fullPath = resolve(keyPath.trim().replace(/\0/g, '').replace('~', homedir()));
+                const { key, error } = parseServiceAccountKey(fullPath);
+                if (error || !key) {
+                    printError(error || 'Invalid service account key.');
+                } else {
+                    result = { key, path: fullPath };
+                }
+            } else {
+                const raw = await prompts.text(
+                    'Paste the service account JSON (single line / compact):',
+                    {
+                        placeholder: '{"type": "service_account", "project_id": ...}',
+                        validate: (v) => v.trim().startsWith('{') ? undefined : "Doesn't look like JSON — paste starting from '{'",
+                    }
+                );
+                const { key, error } = parseServiceAccountJson(raw);
+                if (error || !key) {
+                    printError(error || 'Invalid service account key.');
+                } else {
+                    result = { key, path: persistPastedKey(key) };
+                    printSuccess(`Key saved securely to ${result.path}`);
+                }
+            }
+        } catch (e) {
+            if ((e as any).name === 'CancelledError') throw e;
+            throw e;
+        }
+
+        if (result) return result;
+
+        const retry = await prompts.confirm('Would you like to try again?', true);
+        if (!retry) return null;
+    }
+}
+
+function persistPastedKey(key: ServiceAccountKey): string {
+    const keysDir = join(homedir(), '.search-console-mcp', 'keys');
+    mkdirSync(keysDir, { recursive: true });
+    const hash = createHash('sha256').update(key.client_email).digest('hex').slice(0, 12);
+    const keyPath = join(keysDir, `${hash}.json`);
+    writeFileSync(keyPath, JSON.stringify(key, null, 2), { mode: 0o600 });
+    chmodSync(keyPath, 0o600);
+    return keyPath;
+}
+
 export async function testConnection(keyPath: string): Promise<boolean> {
     try {
         process.env.GOOGLE_APPLICATION_CREDENTIALS = resolve(keyPath.replace('~', homedir()));
@@ -191,6 +260,61 @@ export function resolveRepo(dirname: string): string {
 }
 
 const REPO_URL = 'https://github.com/saurabhsharma2u/search-console-mcp';
+
+/**
+ * Human-friendly diagnostics output (stderr). The standalone
+ * `search-console-mcp diagnostics` command still prints JSON for machines.
+ */
+export function renderDiagnostics(results: any[]) {
+    if (results.length === 0) {
+        printInfo('No diagnostic checks to run.');
+        return;
+    }
+
+    const trunc = (s: string) => s.length > 64 ? s.slice(0, 61) + '...' : s;
+    const rows = results.map(r => ({
+        engine: String(r.engine).toUpperCase(),
+        account: String(r.account),
+        ok: r.status === 'ok',
+        message: trunc(String(r.message)),
+    }));
+
+    const headers: Record<string, string> = { engine: 'ENGINE', account: 'ACCOUNT', status: 'STATUS', message: 'MESSAGE' };
+    const widths: Record<string, number> = {
+        engine: Math.max('ENGINE'.length, ...rows.map(r => r.engine.length)),
+        account: Math.max('ACCOUNT'.length, ...rows.map(r => r.account.length)),
+        status: 7,
+        message: Math.max('MESSAGE'.length, ...rows.map(r => r.message.length)),
+    };
+
+    const border = colors.dim + '+' + Object.keys(widths).map(k => '─'.repeat(widths[k] + 2)).join('+') + '+' + colors.reset;
+    const cell = (content: string, width: number) => ' ' + content.padEnd(width) + ' ';
+
+    log('');
+    log(border);
+    log('|' + Object.keys(widths).map(k => cell(colors.bold + headers[k] + colors.reset, widths[k])).join('|') + '|');
+    log(border);
+    for (const r of rows) {
+        const symbol = r.ok ? `${colors.green}✔${colors.reset}` : `${colors.red}✘${colors.reset}`;
+        const statusCell = ' ' + symbol + ' '.repeat(widths.status - 1);
+        log('|'
+            + cell(r.engine, widths.engine) + '|'
+            + cell(r.account, widths.account) + '|'
+            + statusCell + '|'
+            + cell(r.ok ? r.message : colors.red + r.message + colors.reset, widths.message)
+            + '|');
+    }
+    log(border);
+
+    const failed = rows.filter(r => !r.ok).length;
+    log('');
+    if (failed > 0) {
+        printError(`${failed} check(s) failed. Re-run the failing engine's setup or consult the docs.`);
+    } else {
+        printSuccess(`All ${rows.length} check(s) passed.`);
+    }
+}
+
 
 /**
  * GitHub star ask. Post-success only, non-blocking, shown once per machine.

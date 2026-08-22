@@ -113,9 +113,10 @@ export async function main() {
 
         if (choice === '__diagnostics') {
             const { runDiagnostics } = await import('../common/diagnostics.js');
+            const { renderDiagnostics } = await import('./shared.js');
             try {
                 const results = await runDiagnostics();
-                log(JSON.stringify(results, null, 2));
+                renderDiagnostics(results);
             } catch (e) {
                 printError(`Diagnostics failed: ${(e as Error).message}`);
             }
