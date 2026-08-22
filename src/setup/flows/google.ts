@@ -200,8 +200,9 @@ async function setupServiceAccount() {
         // Silently skip if fails to fetch
     }
 
-    const alias = await prompts.text('Enter an alias for this account:', {
+    const alias = await prompts.text('Account alias (optional — press Enter to use the service account email):', {
         defaultValue: serviceAccountEmail,
+        placeholder: serviceAccountEmail,
         validate: validateAlias
     }) || serviceAccountEmail;
 

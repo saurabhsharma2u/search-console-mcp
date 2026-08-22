@@ -35,8 +35,9 @@ async function setupBing() {
     }
 
     const defaultAlias = selectedWebsites && selectedWebsites.length > 0 ? selectedWebsites[0] : 'Bing Account';
-    const alias = await prompts.text('Enter an alias for this account:', {
+    const alias = await prompts.text('Account alias (optional — press Enter to use the website):', {
         defaultValue: defaultAlias,
+        placeholder: defaultAlias,
         validate: validateAlias
     }) || defaultAlias;
 

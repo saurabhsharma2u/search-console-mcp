@@ -107,7 +107,7 @@ export async function main() {
         }
 
         if (choice === '__exit') {
-            log(`\n${colors.dim}See you on the flip side!${colors.reset}`);
+            log(`\n${colors.dim}Done. Run ${colors.reset}${colors.cyan}search-console-mcp setup${colors.reset}${colors.dim} anytime to add more platforms.${colors.reset}`);
             return;
         }
 

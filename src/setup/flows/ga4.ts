@@ -121,8 +121,9 @@ async function setupGA4ServiceAccount() {
     }
 
     const defaultAlias = `${email}-${propertyId}`;
-    const alias = await prompts.text('Enter an alias for this account:', {
+    const alias = await prompts.text('Account alias (optional — press Enter to use the property ID):', {
         defaultValue: defaultAlias,
+        placeholder: defaultAlias,
         validate: validateAlias
     }) || defaultAlias;
 

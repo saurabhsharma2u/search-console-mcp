@@ -73,8 +73,9 @@ async function setupAdSense() {
         printSuccess('Connection successful!');
 
         const defaultAlias = `${email}-adsense`;
-        const alias = await prompts.text('Enter an alias for this account:', {
+        const alias = await prompts.text('Account alias (optional — press Enter to use your email):', {
             defaultValue: defaultAlias,
+            placeholder: defaultAlias,
             validate: validateAlias
         }) || defaultAlias;
 
