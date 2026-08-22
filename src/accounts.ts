@@ -136,7 +136,8 @@ export async function main(args: string[]) {
             } else if (siteToRemove) {
                 // Remove a specific site boundary from whichever account owns it
                 let found = false;
-                for (const account of Object.values(config.accounts)) {
+                for (const key in config.accounts) {
+                    const account = config.accounts[key];
                     if (account.websites?.includes(siteToRemove)) {
                         account.websites = account.websites.filter((w: string) => w !== siteToRemove);
                         await updateAccount(account);
