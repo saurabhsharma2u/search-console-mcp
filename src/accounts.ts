@@ -66,7 +66,7 @@ export async function main(args: string[]) {
 
             for (const a of accounts) {
                 const alias = a.alias || '[Unnamed]';
-                const engine = a.engine === 'google' ? 'Google' : a.engine === 'bing' ? 'Bing' : 'GA4';
+                const engine = a.engine === 'google' ? 'Google' : a.engine === 'bing' ? 'Bing' : a.engine === 'adsense' ? 'AdSense' : 'GA4';
 
                 if (!a.websites || a.websites.length === 0) {
                     siteRows.push({

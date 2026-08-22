@@ -230,6 +230,58 @@ registerTool(
   analyticsFluent.analyticsAdvancedHandler
 );
 
+// Google AdSense
+registerTool(
+  "adsense_accounts",
+  "List configured AdSense publisher accounts, or discover all publisher accounts the authorized user has access to.",
+  {
+    accountId: z.string().optional().describe("Specific AdSense account ID (default: auto-select)"),
+    mode: z.enum(["configured", "discover"]).optional().describe("configured = saved accounts; discover = all accessible publisher IDs (default: configured)")
+  },
+  async (args: any) => {
+    const { listAdSenseAccounts, listAccessibleAdSenseAccounts } = await import("./adsense/tools/accounts.js");
+    const result = args.mode === "discover"
+      ? await listAccessibleAdSenseAccounts(args.accountId)
+      : await listAdSenseAccounts(args.accountId);
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+registerTool(
+  "adsense_report",
+  "Google AdSense earnings & performance report: estimated earnings, impressions, clicks, CTR and RPM with dimension breakdowns.",
+  {
+    accountId: z.string().optional().describe("Specific AdSense account ID (default: auto-select)"),
+    dateRange: z.enum(["TODAY", "YESTERDAY", "THIS_WEEK", "LAST_WEEK", "THIS_MONTH", "LAST_MONTH", "LAST_7_DAYS", "LAST_30_DAYS"]).optional().describe("Preset date range (default: LAST_7_DAYS)"),
+    startDate: z.string().optional().describe("Custom start date YYYY-MM-DD (requires endDate, overrides dateRange)"),
+    endDate: z.string().optional().describe("Custom end date YYYY-MM-DD (requires startDate)"),
+    dimensions: z.array(z.enum(["DATE", "WEEK", "MONTH", "DOMAIN", "COUNTRY_NAME", "PLATFORM_TYPE_NAME", "AD_UNIT_ID", "CUSTOM_CHANNEL_NAME", "PRODUCT_NAME"])).optional().describe("Breakdown dimensions"),
+    metrics: z.array(z.enum(["ESTIMATED_EARNINGS", "PAGE_VIEWS", "IMPRESSIONS", "CLICKS", "PAGE_VIEWS_CTR", "PAGE_VIEWS_RPM", "IMPRESSIONS_CTR", "IMPRESSIONS_RPM"])).optional().describe("Metrics to report (default: earnings, page views, impressions, clicks, RPM)"),
+    rowLimit: z.number().optional().describe("Max rows to return (default: 100, max: 200)")
+  },
+  async (args: any) => {
+    const { generateReport } = await import("./adsense/tools/reports.js");
+    const result = await generateReport(args);
+    return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+  }
+);
+
+registerTool(
+  "adsense_payments_alerts",
+  "Outstanding AdSense payments and account alerts (policy issues, payment holds).",
+  {
+    accountId: z.string().optional().describe("Specific AdSense account ID (default: auto-select)")
+  },
+  async (args: any) => {
+    const { listPayments, listAlerts } = await import("./adsense/tools/reports.js");
+    const [payments, alerts] = await Promise.all([
+      listPayments(args.accountId),
+      listAlerts(args.accountId)
+    ]);
+    return { content: [{ type: "text", text: JSON.stringify({ payments, alerts }, null, 2) }] };
+  }
+);
+
 // 4. URL Inspection & PageSpeed
 registerTool(
   "inspection_inspect",
@@ -451,6 +503,7 @@ async function main() {
 
   const hasBing = accounts.some(a => a.engine === 'bing') || !!process.env.BING_API_KEY;
   const hasGA4 = accounts.some(a => a.engine === 'ga4');
+  const hasAdSense = accounts.some(a => a.engine === 'adsense');
 
   if (!hasGoogle && !hasBing && !hasGA4) {
     printBoxHeader('Authentication', colors.red);
@@ -491,7 +544,9 @@ async function main() {
     const googleStatus = hasGoogle ? `${colors.green}✔ Google${colors.reset}` : `${colors.red}✘ Google${colors.reset}`;
     const ga4Status = hasGA4 ? `${colors.green}✔ GA4${colors.reset}` : `${colors.red}✘ GA4${colors.reset}`;
     const bingStatus = hasBing ? `${colors.green}✔ Bing${colors.reset}` : `${colors.red}✘ Bing${colors.reset}`;
-    console.error(`Search Console MCP running on stdio [ ${googleStatus} | ${ga4Status} | ${bingStatus} ]`);
+    const adsenseStatus = hasAdSense ? `${colors.green}✔ AdSense${colors.reset}` : '';
+    const statusParts = [googleStatus, ga4Status, bingStatus, adsenseStatus].filter(Boolean);
+    console.error(`Search Console MCP running on stdio [ ${statusParts.join(' | ')} ]`);
   }
 }
 

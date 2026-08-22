@@ -107,6 +107,7 @@ async function detectConfig() {
         googleAccounts: accounts.filter(a => a.engine === 'google'),
         bingAccounts: accounts.filter(a => a.engine === 'bing'),
         ga4Accounts: accounts.filter(a => a.engine === 'ga4'),
+        adsenseAccounts: accounts.filter(a => a.engine === 'adsense'),
         legacyBing: !!process.env.BING_API_KEY,
         pagespeedApiKey: !!process.env.PAGESPEED_API_KEY
     };
@@ -116,15 +117,17 @@ function printDetectionSummary(results: any) {
     const gCount = results.googleAccounts ? results.googleAccounts.length : 0;
     const bCount = (results.bingAccounts ? results.bingAccounts.length : 0) + (results.legacyBing ? 1 : 0);
     const ga4Count = results.ga4Accounts ? results.ga4Accounts.length : 0;
+    const adsenseCount = results.adsenseAccounts ? results.adsenseAccounts.length : 0;
     const hasPageSpeed = !!results.pagespeedApiKey;
 
-    if (gCount === 0 && bCount === 0 && ga4Count === 0 && !hasPageSpeed) return;
+    if (gCount === 0 && bCount === 0 && ga4Count === 0 && adsenseCount === 0 && !hasPageSpeed) return;
 
     console.log(`${colors.bold}${colors.dim}🔍 Connection Status${colors.reset}\n`);
 
     printStatusLine('Google Search Console', gCount > 0);
     printStatusLine('Google Analytics 4', ga4Count > 0);
     printStatusLine('Bing Webmaster Tools', bCount > 0);
+    printStatusLine('Google AdSense', adsenseCount > 0);
     printStatusLine('PageSpeed Insights (API Key)', hasPageSpeed);
     console.log('');
 }
@@ -616,6 +619,9 @@ export async function main() {
     } else if (engineFlag === 'ga4') {
         await handleGA4Flow(configStatus);
         return;
+    } else if (engineFlag === 'adsense') {
+        await handleAdSenseFlow(configStatus);
+        return;
     } else if (engineFlag === 'pagespeed') {
         await setupPageSpeed();
         return;
@@ -630,10 +636,11 @@ export async function main() {
         console.log(`\n1. Google Search Console`);
         console.log('2. Google Analytics 4');
         console.log('3. Bing Webmaster Tools');
-        console.log('4. PageSpeed Insights (Optional API Key)');
-        console.log('5. Exit');
+        console.log('4. Google AdSense');
+        console.log('5. PageSpeed Insights (Optional API Key)');
+        console.log('6. Exit');
 
-        const choice = await ask(`\n${colors.bold}${colors.cyan}Enter your choice (1-5): ${colors.reset}`);
+        const choice = await ask(`\n${colors.bold}${colors.cyan}Enter your choice (1-6): ${colors.reset}`);
 
         switch (choice) {
             case '1':
@@ -646,11 +653,14 @@ export async function main() {
                 await handleBingFlow(configStatus);
                 break;
             case '4':
+                await handleAdSenseFlow(configStatus);
+                break;
+            case '5':
                 await setupPageSpeed();
                 // Refresh config status after setting key
                 Object.assign(configStatus, await detectConfig());
                 break;
-            case '5':
+            case '6':
             default:
                 console.log(`\n${colors.dim}See you on the flip side!${colors.reset}`);
                 rl.close();
@@ -845,6 +855,102 @@ async function setupGA4OAuth() {
         await updateAccount(account);
         await saveTokensForAccount(account, tokens);
         printSuccess(`Successfully added GA4 account ${alias}!`);
+        showMcpConfigSnippet();
+    } catch (e) {
+        printError(`Failed: ${(e as Error).message}`);
+    }
+}
+
+async function checkAndShowAdSenseAccounts(configStatus: any): Promise<boolean> {
+    const isConnected = configStatus.adsenseAccounts && configStatus.adsenseAccounts.length > 0;
+    if (!isConnected) return true;
+
+    console.log(`${colors.green}✔ Google AdSense is already connected!${colors.reset}`);
+    const config = await loadConfig();
+    const accounts = Object.values(config.accounts).filter(a => a.engine === 'adsense');
+
+    console.log(`\n${colors.bold}Your configured AdSense publisher accounts:${colors.reset}`);
+    accounts.forEach(a => console.log(`  • ${a.alias} (Publisher ID: ${a.adsenseAccountId})`));
+
+    const reconf = await ask(`\nWould you like to reconfigure AdSense? (y/N): `);
+    return reconf.toLowerCase().startsWith('y');
+}
+
+async function handleAdSenseFlow(configStatus: any) {
+    const shouldProceed = await checkAndShowAdSenseAccounts(configStatus);
+    if (!shouldProceed) {
+        console.log(`\n${colors.green}✔${colors.reset} ${colors.bold}Configuration untouched. You're ready to roll!${colors.reset}`);
+        return;
+    }
+    await setupAdSense();
+}
+
+async function setupAdSense() {
+    printBoxHeader('Google AdSense Setup');
+    printInfo('AdSense uses read-only access via Secure Desktop Flow.');
+    printInfo('If you use the same email as GSC, it will appear as a separate account in the CLI.');
+
+    const clientId = DEFAULT_CLIENT_ID;
+    const clientSecret = DEFAULT_CLIENT_SECRET;
+    const SCOPES = ['https://www.googleapis.com/auth/adsense.readonly', 'https://www.googleapis.com/auth/userinfo.email'];
+
+    try {
+        const tokens = await startLocalFlow(clientId, clientSecret, SCOPES);
+        const email = await getUserEmail(tokens);
+        console.log(`\nAuthorized as: ${colors.bold}${email}${colors.reset}`);
+
+        const { google } = await import('googleapis');
+        const oauth2Client = new google.auth.OAuth2(clientId, clientSecret);
+        oauth2Client.setCredentials(tokens);
+
+        printInfo('Fetching available AdSense publisher accounts...');
+        const adsense = google.adsense({ version: 'v2', auth: oauth2Client });
+        const res = await adsense.accounts.list({ pageSize: 100 });
+        const pubAccounts = res.data.accounts || [];
+
+        if (pubAccounts.length === 0) {
+            printError('No AdSense publisher accounts found for this Google account.');
+            console.log(`\n${colors.yellow}💡 Hint:${colors.reset} Ensure you have an approved AdSense account at ${colors.cyan}https://adsense.google.com${colors.reset}.`);
+            return;
+        }
+
+        let selected = pubAccounts[0];
+        if (pubAccounts.length > 1) {
+            console.log(`\n${colors.bold}Multiple publisher accounts found:${colors.reset}`);
+            pubAccounts.forEach((a, i) => console.log(`  ${i + 1}. ${a.displayName || a.name}`));
+            const choice = await ask(`Select an account (1-${pubAccounts.length}): `);
+            const idx = parseInt(choice, 10);
+            if (!isNaN(idx) && idx >= 1 && idx <= pubAccounts.length) {
+                selected = pubAccounts[idx - 1];
+            } else {
+                printError('Invalid selection. Setup cancelled.');
+                return;
+            }
+        }
+        const publisherId = selected.name!; // e.g. "accounts/pub-0000000000000000"
+
+        // Validate
+        printInfo('Verifying access...');
+        await adsense.accounts.reports.generate({
+            account: publisherId,
+            dateRange: 'LAST_7_DAYS',
+            metrics: ['ESTIMATED_EARNINGS'],
+            limit: 1
+        });
+        printSuccess('Connection successful!');
+
+        const defaultAlias = `${email}-adsense`;
+        const alias = await ask(`Enter an alias for this account (optional, default: ${defaultAlias}): `) || defaultAlias;
+
+        const account: AccountConfig = {
+            id: `adsense_${Date.now()}`,
+            engine: 'adsense',
+            alias,
+            adsenseAccountId: publisherId
+        };
+        await updateAccount(account);
+        await saveTokensForAccount(account, tokens);
+        printSuccess(`Successfully added AdSense account ${alias}!`);
         showMcpConfigSnippet();
     } catch (e) {
         printError(`Failed: ${(e as Error).message}`);

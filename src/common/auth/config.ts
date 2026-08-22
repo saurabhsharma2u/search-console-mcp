@@ -10,7 +10,7 @@ const CONFIG_PATH = join(homedir(), '.search-console-mcp-config.enc');
 const LEGACY_TOKEN_PATH = join(homedir(), '.search-console-mcp-tokens.enc');
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm';
 
-export type EngineType = 'google' | 'bing' | 'ga4';
+export type EngineType = 'google' | 'bing' | 'ga4' | 'adsense';
 
 export interface AccountConfig {
     id: string;
@@ -28,6 +28,8 @@ export interface AccountConfig {
     apiKey?: string;
     // GA4 specific
     ga4PropertyId?: string;
+    // AdSense specific
+    adsenseAccountId?: string;
     // Metadata for migration
     isLegacy?: boolean;
 }
