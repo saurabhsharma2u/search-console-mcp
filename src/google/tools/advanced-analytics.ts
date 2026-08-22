@@ -57,13 +57,14 @@ export const ALGORITHM_UPDATES = [
     { date: '2025-08-26', name: 'August 2025 Spam Update' },
     { date: '2025-12-11', name: 'December 2025 Core Update' },
     // 2026
-    { date: '2026-02-05', name: 'February 2026 Discover Core Update' },
+    { date: '2026-02-05', name: 'February 2026 Discover Update' },
     { date: '2026-03-24', name: 'March 2026 Spam Update' },
     { date: '2026-03-27', name: 'March 2026 Core Update' },
     { date: '2026-04-10', name: 'Generative AI Manipulation (Spam Policy Update)' },
     { date: '2026-05-21', name: 'May 2026 Core Update' },
     { date: '2026-06-15', name: 'Back Button Hijacking (Spam Policy Update)' },
     { date: '2026-06-24', name: 'June 2026 Spam Update' },
+    { date: '2026-08-18', name: 'August 2026 Spam Update' },
 ];
 
 /**
