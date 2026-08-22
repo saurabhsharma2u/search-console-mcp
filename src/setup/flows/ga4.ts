@@ -2,7 +2,7 @@ import { AccountConfig, loadConfig, updateAccount } from '../../common/auth/conf
 import { google } from 'googleapis';
 import { startLocalFlow, getUserEmail, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, saveTokensForAccount } from '../../google/client.js';
 import { prompts, withSpinner } from '../../utils/prompts.js';
-import { validateAlias } from '../../utils/validation.js';
+import { validateAlias, parseServiceAccountKey } from '../../utils/validation.js';
 import { colors } from '../../utils/ui.js';
 import { ConfigStatus, log, printStep, printSuccess, printError, printInfo, showMcpConfigSnippet, supportProject, acquireServiceAccountKey } from '../shared.js';
 
@@ -59,11 +59,16 @@ async function setupGA4ServiceAccount() {
             true
         );
         if (reuse) {
-            keyPath = gscAccount.serviceAccountPath;
-            // Derive the SA email from the reused key instead of asking
-            const { validateKeyFile: _vf } = await import('../shared.js');
-            const { parseServiceAccountKey } = await import('../../utils/validation.js');
-            email = parseServiceAccountKey(keyPath).key?.client_email;
+            const parsed = parseServiceAccountKey(gscAccount.serviceAccountPath);
+            if (parsed.key) {
+                keyPath = gscAccount.serviceAccountPath;
+                email = parsed.key.client_email;
+            } else {
+                // Key unreadable — say so and re-acquire instead of asking
+                // the user to retype an email we should be able to read.
+                printError(`Could not reuse the existing key: ${parsed.error}`);
+                log('');
+            }
         }
     }
 
@@ -80,12 +85,6 @@ async function setupGA4ServiceAccount() {
         }
         keyPath = acquired.path;
         email = acquired.key.client_email;
-    }
-
-    if (!email) {
-        email = await prompts.text('Enter the email of the service account (found in the JSON file as client_email):', {
-            validate: (v) => v.trim() ? undefined : 'Service account email is required.'
-        });
     }
 
     // Add to GA4
