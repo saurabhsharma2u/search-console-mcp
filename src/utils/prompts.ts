@@ -80,7 +80,11 @@ class ClackDriver implements PromptDriver {
             message,
             placeholder: opts.placeholder,
             defaultValue: opts.defaultValue,
-            validate: opts.validate ? (v) => opts.validate!(v || '') || undefined : undefined,
+            validate: opts.validate ? (v) => {
+                // Empty submit takes the defaultValue — don't reject it.
+                if (!v && opts.defaultValue !== undefined) return undefined;
+                return opts.validate!(v || '') || undefined;
+            } : undefined,
         });
         if (clack.isCancel(result)) throw new CancelledError();
         return (result as string) ?? '';

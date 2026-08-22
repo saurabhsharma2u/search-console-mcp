@@ -146,9 +146,17 @@ export function validateKeyFile(path: string): ServiceAccountKey | null {
 }
 
 /**
- * Unified service account key acquisition: enter a file path OR paste the
- * JSON content directly. Pasted keys are persisted to
- * `~/.search-console-mcp/keys/` with 0600 permissions.
+ * Unified service account key acquisition.
+ *
+ * NOTE: The "paste JSON" option is intentionally hidden — terminal multiline
+ * paste doesn't survive single-line input fields (clack aborts on newlines).
+ * parseServiceAccountJson() + persistPastedKey() below are kept dormant for
+ * when we support multiline capture. Re-enable by restoring the select:
+ *
+ *   const method = await prompts.select('How would you like to provide the key?', [
+ *     { value: 'path', label: 'Enter a file path' },
+ *     { value: 'paste', label: 'Paste the JSON content' },
+ *   ]);
  *
  * Returns null if the user gives up.
  */
@@ -156,37 +164,15 @@ export async function acquireServiceAccountKey(): Promise<{ key: ServiceAccountK
     while (true) {
         let result: { key: ServiceAccountKey; path: string } | null = null;
         try {
-            const method = await prompts.select('How would you like to provide the service account key?', [
-                { value: 'path', label: 'Enter a file path', hint: 'Key downloaded from Google Cloud Console' },
-                { value: 'paste', label: 'Paste the JSON content', hint: 'Paste the key file contents directly (compact JSON works best)' },
-            ]);
-
-            if (method === 'path') {
-                const keyPath = await prompts.text('Enter the path to your JSON key file:', {
-                    validate: validateKeyFilePath,
-                });
-                const fullPath = resolve(keyPath.trim().replace(/\0/g, '').replace('~', homedir()));
-                const { key, error } = parseServiceAccountKey(fullPath);
-                if (error || !key) {
-                    printError(error || 'Invalid service account key.');
-                } else {
-                    result = { key, path: fullPath };
-                }
+            const keyPath = await prompts.text('Enter the path to your JSON key file:', {
+                validate: validateKeyFilePath,
+            });
+            const fullPath = resolve(keyPath.trim().replace(/\0/g, '').replace('~', homedir()));
+            const { key, error } = parseServiceAccountKey(fullPath);
+            if (error || !key) {
+                printError(error || 'Invalid service account key.');
             } else {
-                const raw = await prompts.text(
-                    'Paste the service account JSON (single line / compact):',
-                    {
-                        placeholder: '{"type": "service_account", "project_id": ...}',
-                        validate: (v) => v.trim().startsWith('{') ? undefined : "Doesn't look like JSON — paste starting from '{'",
-                    }
-                );
-                const { key, error } = parseServiceAccountJson(raw);
-                if (error || !key) {
-                    printError(error || 'Invalid service account key.');
-                } else {
-                    result = { key, path: persistPastedKey(key) };
-                    printSuccess(`Key saved securely to ${result.path}`);
-                }
+                result = { key, path: fullPath };
             }
         } catch (e) {
             if ((e as any).name === 'CancelledError') throw e;

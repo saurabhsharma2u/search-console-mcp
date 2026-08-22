@@ -267,7 +267,7 @@ describe('Setup Full', () => {
 
         it('should handle Google Service Account flow', async () => {
             process.argv = ['node', 'setup.ts', '--engine=google'];
-            driver.selectResponses = ['sa', 'path']; // auth method, key input method
+            driver.selectResponses = ['sa']; // auth method
             driver.textResponses = ['key.json', '', 'sa-alias']; // key path, continue, alias
             driver.confirmResponses = [false]; // star ask
 
