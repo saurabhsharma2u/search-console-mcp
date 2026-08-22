@@ -610,6 +610,13 @@ export async function main() {
     const engineFlag = args.find(a => a.startsWith('--engine='))?.split('=')[1]?.toLowerCase();
     const configStatus = await detectConfig();
 
+    const VALID_ENGINES = ['google', 'bing', 'ga4', 'adsense', 'pagespeed'];
+    if (engineFlag && !VALID_ENGINES.includes(engineFlag)) {
+        console.error(`${colors.red}✘${colors.reset} ${colors.bold}Unknown engine: '${engineFlag}'${colors.reset}`);
+        console.error(`\nValid options:\n  ${VALID_ENGINES.map(e => `--engine=${e}`).join('\n  ')}`);
+        process.exit(1);
+    }
+
     if (engineFlag === 'bing') {
         await handleBingFlow(configStatus);
         return;
