@@ -255,7 +255,7 @@ registerTool(
     dateRange: z.enum(["TODAY", "YESTERDAY", "THIS_WEEK", "LAST_WEEK", "THIS_MONTH", "LAST_MONTH", "LAST_7_DAYS", "LAST_30_DAYS"]).optional().describe("Preset date range (default: LAST_7_DAYS)"),
     startDate: z.string().optional().describe("Custom start date YYYY-MM-DD (requires endDate, overrides dateRange)"),
     endDate: z.string().optional().describe("Custom end date YYYY-MM-DD (requires startDate)"),
-    dimensions: z.array(z.enum(["DATE", "WEEK", "MONTH", "DOMAIN", "COUNTRY_NAME", "PLATFORM_TYPE_NAME", "AD_UNIT_ID", "CUSTOM_CHANNEL_NAME", "PRODUCT_NAME"])).optional().describe("Breakdown dimensions"),
+    dimensions: z.array(z.enum(["DATE", "WEEK", "MONTH", "DOMAIN_NAME", "COUNTRY_NAME", "PLATFORM_TYPE_NAME", "AD_UNIT_ID", "AD_UNIT_NAME", "CUSTOM_CHANNEL_ID", "CUSTOM_CHANNEL_NAME", "PRODUCT_NAME", "PRODUCT_CODE", "URL_CHANNEL_ID"])).optional().describe("Breakdown dimensions"),
     metrics: z.array(z.enum(["ESTIMATED_EARNINGS", "PAGE_VIEWS", "IMPRESSIONS", "CLICKS", "PAGE_VIEWS_CTR", "PAGE_VIEWS_RPM", "IMPRESSIONS_CTR", "IMPRESSIONS_RPM"])).optional().describe("Metrics to report (default: earnings, page views, impressions, clicks, RPM)"),
     rowLimit: z.number().optional().describe("Max rows to return (default: 100, max: 200)")
   },
