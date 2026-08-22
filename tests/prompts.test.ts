@@ -27,7 +27,7 @@ describe('Prompts registration', () => {
     process.env = originalEnv;
   });
 
-  it('should register all 12 prompts', () => {
+  it('should register all 14 prompts', () => {
     registerPrompts(mockServer as McpServer);
     const calls = mockServer.prompt.mock.calls;
     const registeredNames = calls.map((c: any) => c[0]);
@@ -40,11 +40,13 @@ describe('Prompts registration', () => {
     expect(registeredNames).toContain('content_opportunity_report');
     expect(registeredNames).toContain('executive_summary');
     expect(registeredNames).toContain('ga4_traffic_audit');
+    expect(registeredNames).toContain('adsense_earnings_review');
+    expect(registeredNames).toContain('adsense_monetization_audit');
     expect(registeredNames).toContain('seo_traffic_detective');
     expect(registeredNames).toContain('seo_striking_distance');
     expect(registeredNames).toContain('seo_cannibalization_audit');
     expect(registeredNames).toContain('seo_compare_google_bing');
-    expect(registeredNames).toHaveLength(12);
+    expect(registeredNames).toHaveLength(14);
   });
 
   it('should generate Google-specific workflow when Google is enabled', () => {

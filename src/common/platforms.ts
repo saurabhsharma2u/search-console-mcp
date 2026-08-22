@@ -18,5 +18,8 @@ export function getEnabledPlatforms() {
     // GA4 needs the config file (for service accounts or oauth)
     const isGA4Enabled = existsSync(configPath);
 
-    return { isGoogleEnabled, isBingEnabled, isGA4Enabled };
+    // AdSense uses the same encrypted config file (oauth accounts)
+    const isAdSenseEnabled = existsSync(configPath);
+
+    return { isGoogleEnabled, isBingEnabled, isGA4Enabled, isAdSenseEnabled };
 }

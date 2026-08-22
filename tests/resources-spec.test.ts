@@ -16,10 +16,14 @@ describe("Native MCP Resources (MCP 2026-07-28 Spec)", () => {
 
     expect(registeredNames).toContain("google-algorithm-updates");
     expect(registeredNames).toContain("connected-sites");
+    expect(registeredNames).toContain("adsense-accounts");
+    expect(registeredNames).toContain("adsense-payments");
     expect(registeredNames).toContain("backward-compatibility-map");
 
     expect(registeredUris).toContain("seo://algorithm-updates");
     expect(registeredUris).toContain("seo://connected-sites");
+    expect(registeredUris).toContain("seo://adsense/accounts");
+    expect(registeredUris).toContain("seo://adsense/payments");
     expect(registeredUris).toContain("seo://backward-compatibility");
   });
 

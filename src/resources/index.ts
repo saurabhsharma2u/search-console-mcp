@@ -31,7 +31,7 @@ export function registerMcpResources(server: McpServer): void {
     "connected-sites",
     "seo://connected-sites",
     {
-      description: "List of configured Google Search Console, Bing Webmaster Tools, and GA4 properties.",
+      description: "List of configured Google Search Console, Bing Webmaster Tools, GA4 properties, and AdSense publisher accounts.",
       mimeType: "application/json",
     },
     async (uri) => {
@@ -44,6 +44,7 @@ export function registerMcpResources(server: McpServer): void {
           engine: acc.engine,
           websites: acc.websites || [],
           ga4PropertyId: acc.ga4PropertyId,
+          adsenseAccountId: acc.adsenseAccountId,
         }));
       } catch {
         // Fallback if config read fails
@@ -61,7 +62,72 @@ export function registerMcpResources(server: McpServer): void {
     }
   );
 
-  // 3. Backward Compatibility Migration Map Resource
+  // 3. AdSense Publisher Accounts Resource
+  server.resource(
+    "adsense-accounts",
+    "seo://adsense/accounts",
+    {
+      description: "Configured Google AdSense publisher accounts.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      let accounts: any[] = [];
+      try {
+        const config = await loadConfig();
+        accounts = Object.values(config.accounts)
+          .filter((acc) => acc.engine === "adsense")
+          .map((acc) => ({
+            id: acc.id,
+            alias: acc.alias,
+            publisherId: acc.adsenseAccountId,
+          }));
+      } catch {
+        // Fallback if config read fails
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify({ count: accounts.length, accounts }, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    }
+  );
+
+  // 4. AdSense Payments & Alerts Resource (live API read)
+  server.resource(
+    "adsense-payments",
+    "seo://adsense/payments",
+    {
+      description: "Outstanding AdSense payments balance and active account alerts for the first configured account.",
+      mimeType: "application/json",
+    },
+    async (uri) => {
+      let payload: unknown;
+      try {
+        const { listPayments, listAlerts } = await import("../adsense/tools/reports.js");
+        const [payments, alerts] = await Promise.all([listPayments(), listAlerts()]);
+        payload = { payments, alerts };
+      } catch (error) {
+        payload = { error: `Unable to fetch AdSense data: ${(error as Error).message}` };
+      }
+
+      return {
+        contents: [
+          {
+            uri: uri.href,
+            text: JSON.stringify(payload, null, 2),
+            mimeType: "application/json",
+          },
+        ],
+      };
+    }
+  );
+
+  // 5. Backward Compatibility Migration Map Resource
   server.resource(
     "backward-compatibility-map",
     "seo://backward-compatibility",
