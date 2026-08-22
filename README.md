@@ -20,8 +20,9 @@ Stop exporting CSVs. Start asking your AI agent questions.
 
 ---
 
-## ⚡ What's New in v2.0.2
+## ⚡ What's New
 
+* 💰 **Google AdSense Integration**: Earnings reports, payments and account alerts via `setup --engine=adsense` (read-only OAuth, zero re-consent for existing accounts).
 * 📦 **MCPB One-Click Bundle Support (`.mcpb`)**: Drag and drop bundle installation for Claude Desktop.
 * ⚡ **Parallel Fetch Engine (`engine: "all"`)**: Multi-engine queries fetch Google, Bing, and GA4 concurrently with **50%+ lower latency**.
 * 🔄 **100% Backward Compatibility**: All ~96 legacy tool names continue to work seamlessly via our fallback router. [Read Backward Compatibility Guide →](https://searchconsolemcp.saurabh.app/concepts/backward-compatibility)
@@ -98,6 +99,7 @@ Paste these straight into your agent:
 | **Google Search Console** | Service Account | Set `GOOGLE_APPLICATION_CREDENTIALS` — [details](#service-account-advanced) |
 | **Bing Webmaster Tools** | API Key | `export BING_API_KEY="..."` — [get a key](https://www.bing.com/webmasters/settings/api) |
 | **Google Analytics 4** | Service Account | `npx search-console-mcp setup --engine=ga4` |
+| **Google AdSense** | OAuth (read-only) | `npx search-console-mcp setup --engine=adsense` |
 
 Manage everything from the CLI:
 
@@ -165,6 +167,14 @@ Search Console MCP v2.0 features **7 Fluent Domain Tools** that handle all SEO, 
 | `seo_keywords_research`| `keywords`, `type: "stats" \| "related" \| "traffic"` | Keyword volumes and related keyword stats |
 | `site_health_check` | `siteUrl`, `level: "summary" \| "full" \| "crawl_issues"` | One-shot site performance & technical audit |
 | `compare_engines` | `siteUrl` | Side-by-side Google vs Bing performance breakdown |
+
+### Google AdSense Tools
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `adsense_accounts` | `mode: "configured" \| "discover"`, `accountId` | Lists configured or discoverable AdSense publisher accounts |
+| `adsense_report` | `dateRange`, `startDate`, `endDate`, `dimensions`, `metrics`, `rowLimit` | Earnings, impressions, clicks, CTR & RPM with dimension breakdowns |
+| `adsense_payments_alerts` | `accountId` | Outstanding payments and account alerts (policy issues, payment holds) |
 
 <details>
 <summary><strong>Backward Compatibility Notice (96+ Legacy Tools)</strong></summary>
