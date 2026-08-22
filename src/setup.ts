@@ -29,6 +29,18 @@ function ask(question: string): Promise<string> {
     });
 }
 
+function findAccount(accounts: Record<string, AccountConfig>, predicate: (a: AccountConfig) => boolean): AccountConfig | undefined {
+    for (const key in accounts) {
+        if (Object.prototype.hasOwnProperty.call(accounts, key)) {
+            const a = accounts[key];
+            if (predicate(a)) {
+                return a;
+            }
+        }
+    }
+    return undefined;
+}
+
 
 function printHeader() {
     printBoxHeader('Setup Wizard');
@@ -304,7 +316,7 @@ export async function login() {
         const alias = await ask(`Enter an alias for this account (optional, default: ${email}): `) || email;
 
         const config = await loadConfig();
-        const existingAccount = Object.values(config.accounts).find(a => a.engine === 'google' && a.alias === alias);
+        const existingAccount = findAccount(config.accounts, a => a.engine === 'google' && a.alias === alias);
         const accountId = existingAccount ? existingAccount.id : `google_${Date.now()}`;
 
         const account: AccountConfig = {
@@ -435,7 +447,7 @@ async function setupServiceAccount() {
     const alias = await ask(`Enter an alias for this account (optional, default: ${serviceAccountEmail}): `) || serviceAccountEmail;
 
     const config = await loadConfig();
-    const existingAccount = Object.values(config.accounts).find(a => a.engine === 'google' && a.alias === alias);
+    const existingAccount = findAccount(config.accounts, a => a.engine === 'google' && a.alias === alias);
     const accountId = existingAccount ? existingAccount.id : `google_${Date.now()}`;
 
     const account: AccountConfig = {
@@ -725,7 +737,7 @@ async function setupGA4ServiceAccount() {
     // Check for existing key from GSC
     let keyPath: string | undefined;
     const config = await loadConfig();
-    const gscAccount = Object.values(config.accounts).find(a => a.engine === 'google' && a.serviceAccountPath);
+    const gscAccount = findAccount(config.accounts, a => a.engine === 'google' && a.serviceAccountPath !== undefined);
 
     if (gscAccount && gscAccount.serviceAccountPath) {
         const reuse = await ask(`Found existing Service Account key for GSC (${gscAccount.alias}). Reuse it? (Y/n): `);
