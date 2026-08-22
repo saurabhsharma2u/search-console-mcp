@@ -15,6 +15,7 @@
   ],
   "scripts": {
     "build": "tsc",
+    "setup": "pnpm build && node dist/setup.js",
     "test": "vitest run",
     "inspector": "npx @modelcontextprotocol/inspector@latest node dist/index.js",
     "test:live:google": "tsx tests/live-google-test.ts",
