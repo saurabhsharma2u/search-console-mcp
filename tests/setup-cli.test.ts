@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { runLogout } from '../src/setup.js';
 import * as googleClient from '../src/google/client.js';
+import { ScriptedDriver } from './helpers/scripted-driver.js';
 
 // Mock the google-client module
 vi.mock('../src/google/client.js', () => ({
@@ -44,19 +45,18 @@ const consoleSpy = {
     error: vi.spyOn(console, 'error').mockImplementation(() => { })
 };
 
-// Mock readline since runLogout closes it
-vi.mock('readline', () => ({
-    createInterface: () => ({
-        close: vi.fn(),
-        question: vi.fn((q, cb) => cb('')),
-    })
-}));
-
 describe('CLI Commands', () => {
-    beforeEach(() => {
+    let driver: ScriptedDriver;
+    let promptsModule: any;
+
+    beforeEach(async () => {
         vi.clearAllMocks();
         // Reset process.argv
         process.argv = ['node', 'script'];
+
+        promptsModule = await import('../src/utils/prompts.js');
+        driver = new ScriptedDriver();
+        promptsModule.setPromptDriver(driver);
     });
 
     describe('runLogout', () => {
@@ -70,7 +70,7 @@ describe('CLI Commands', () => {
         it('should handle logout errors gracefully', async () => {
             vi.mocked(googleClient.logout).mockRejectedValue(new Error('Keychain error'));
             await runLogout();
-            expect(consoleSpy.log).toHaveBeenCalledWith(expect.stringContaining('Logout failed: Keychain error'));
+            expect(consoleSpy.error).toHaveBeenCalledWith(expect.stringContaining('Logout failed: Keychain error'));
         });
     });
 
@@ -84,6 +84,7 @@ describe('CLI Commands', () => {
             // Mock successfully 
             vi.mocked(googleClient.startLocalFlow).mockResolvedValue({ access_token: 'fake-token' });
             vi.mocked(googleClient.getUserEmail).mockResolvedValue('test@example.com');
+            driver.confirmResponses = [false, false]; // indexing scope, star ask
 
             // Import login dynamically
             const { login } = await import('../src/setup.js');
@@ -100,17 +101,18 @@ describe('CLI Commands', () => {
                 expect.objectContaining({ alias: 'test@example.com' }),
                 expect.objectContaining({ access_token: 'fake-token' })
             );
-            expect(consoleSpy.log).toHaveBeenCalledWith(expect.stringContaining('Successfully added account test@example.com!'));
+            expect(consoleSpy.error).toHaveBeenCalledWith(expect.stringContaining('Successfully added account test@example.com!'));
         });
 
         it('should handle login failure', async () => {
             vi.mocked(googleClient.startLocalFlow).mockRejectedValue(new Error('Auth rejected'));
+            driver.confirmResponses = [false]; // indexing scope prompt precedes auth
 
             const { login } = await import('../src/setup.js');
 
             await expect(login()).rejects.toThrow('Process.exit(1)');
 
-            expect(consoleSpy.log).toHaveBeenCalledWith(expect.stringContaining('Authentication failed: Auth rejected'));
+            expect(consoleSpy.error).toHaveBeenCalledWith(expect.stringContaining('Authentication failed: Auth rejected'));
         });
     });
 });

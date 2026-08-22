@@ -35,7 +35,8 @@
     "google-search-console",
     "seo",
     "google analytics",
-    "ga4"
+    "ga4",
+    "adsense"
   ],
   "author": "Saurabh Sharma",
   "license": "MIT",
@@ -49,6 +50,7 @@
   "homepage": "https://searchconsolemcp.saurabh.app",
   "dependencies": {
     "@adobe/structured-data-validator": "^1.7.0",
+    "@clack/prompts": "^1.7.0",
     "@google-analytics/data": "^6.1.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@napi-rs/keyring": "^1.3.0",

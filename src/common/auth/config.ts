@@ -36,6 +36,8 @@ export interface AccountConfig {
 
 export interface AppConfig {
     accounts: Record<string, AccountConfig>;
+    /** UI state (e.g. star-ask shown once) — never contains credentials. */
+    starAskShown?: boolean;
 }
 
 let cachedConfig: AppConfig | null = null;
