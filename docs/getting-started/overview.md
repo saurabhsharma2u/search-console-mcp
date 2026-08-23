@@ -1,41 +1,44 @@
 ---
 title: "Overview"
-description: "What is search-console-mcp?"
 ---
 
-**search-console-mcp** is an open-source implementation of the [Model Context Protocol](https://modelcontextprotocol.io) that gives AI agents direct, structured access to **Google Search Console (GSC)**, **Bing Webmaster Tools**, and **Google Analytics 4 (GA4)**.
+# Search Console MCP
 
-Unlike simple API wrappers, this project focuses on providing **SEO Intelligence Tools**. Instead of just asking an agent to "look at my data," you can give it tools to "find quick wins," "detect traffic anomalies," or "submit URLs instantly."
+**Search Console MCP connects your Google Search Console, Bing Webmaster Tools, Google Analytics 4, and Google AdSense accounts to AI assistants like Claude, so you can ask questions about your site's traffic, rankings, and revenue instead of exporting spreadsheets.**
 
-## Key Capabilities (v2.0)
+It's an open-source tool built by [Saurabh Sharma](https://github.com/saurabhsharma2u) for site owners, SEO professionals, and developers who want their AI agent to read their site performance data directly.
 
-*   **Fluent Domain Architecture:** Streamlined into 7 core domain entry points (`sites_list`, `sitemaps_list`, `analytics_query`, `inspection_inspect`, `indexing_submit`, `seo_audit`, `site_health_check`).
-*   **Parallel Multi-Engine Execution (`engine: "all"`):** Query Google, Bing, and GA4 simultaneously with **50%+ lower latency**.
-*   **100% Backward Compatibility:** All ~96 legacy tool names continue working seamlessly via our Fallback Router. [Read Backward Compatibility Guide →](/concepts/backward-compatibility)
-*   **Multi-Platform Support:** Manage sites, behavior data, and ad revenue for Google, Bing, GA4, and AdSense in one place.
-*   **Advanced Analytics:** Multi-dimensional analysis, rolling averages, period-over-period comparisons, and drop attribution.
-*   **SEO Insights:** Deterministic detection of cannibalization, Striking Distance keywords, and "Low-Hanging Fruit."
-*   **Site Health Check:** Automated diagnostics across all your properties — performance trends, sitemap status, and anomaly detection in one call.
-*   **Instant Indexing:** Use **IndexNow** to instantly notify Bing and other engines of content changes.
-*   **Sitemap Control:** List, submit, and delete sitemaps.
-*   **URL Inspection & PageSpeed:** Check indexing status on Google and Bing, and audit Core Web Vitals directly within your SEO workflow.
+## What it does
 
-## The Problem
+You connect your Google and Bing accounts once. After that, your AI agent can pull reports, detect traffic anomalies, find keyword opportunities, and check ad revenue — all through natural-language requests instead of manual dashboard exports.
 
-Working with SEO data in LLMs usually involves:
-1.  Exporting CSVs.
-2.  Uploading them to a chat window.
-3.  Hoping the model calculates standard deviations or trends correctly.
+## Permissions we request
 
-## The Solution
+| Access | Scope | What it's used for |
+| --- | --- | --- |
+| Google Search Console | `webmasters.readonly` | Read search performance, indexing status, and sitemap data |
+| Google Analytics 4 | `analytics.readonly` | Read traffic and engagement reports |
+| Google AdSense | `adsense.readonly` | Read ad revenue and performance reports |
+| Bing Webmaster Tools | API key (not OAuth) | Read search performance data from Bing |
 
-With this MCP server, the agent has a "toolbox." When you ask "Why did my traffic drop?", the agent doesn't guess. It calls `analytics_anomalies` to check for statistical drops, `inspection_inspect` to check indexing, and `analytics_compare({ mode: "drop_attribution" })` to correlate with algorithm updates and GA4 behavior.
+**All access is read-only.** Search Console MCP never modifies, deletes, or shares your data. Nothing is sent to third-party servers — the tool runs locally on your own machine and talks directly to Google's and Microsoft's APIs using your own credentials.
 
-## Supported Clients
+## Who this is for
 
-This server works with any MCP-compatible client, including:
-*   [Claude Desktop](https://claude.ai/download)
-*   [Cursor](https://cursor.com)
-*   [Antigravity / AGY CLI](https://antigravity.google.com)
-*   [LibreChat](https://librechat.ai)
-*   Custom agent implementations using the MCP SDK.
+- **Indie hackers & founders** automating weekly SEO reviews
+- **SEO professionals** investigating traffic drops or ranking changes across many properties
+- **Developers** building AI agents that need reliable site performance data
+
+## Data & privacy
+
+- Credentials are stored locally on your device (OS keychain where available), never on our servers — we don't operate any servers that see your data
+- You can revoke access at any time from your [Google Account permissions page](https://myaccount.google.com/permissions)
+- Read our full Privacy Policy and browse the [source code](https://github.com/saurabhsharma2u/search-console-mcp)
+
+## Questions or issues
+
+Open an issue on [GitHub](https://github.com/saurabhsharma2u/search-console-mcp/issues) or reach out at \[your support email/contact link\].
+
+---
+
+[Get Started →](/getting-started/installation) · [View Documentation →](/docs) · [View on GitHub →](https://github.com/saurabhsharma2u/search-console-mcp)
