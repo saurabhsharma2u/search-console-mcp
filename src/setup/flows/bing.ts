@@ -12,9 +12,10 @@ async function setupBing() {
     log('  2. Log in with your Microsoft account');
     log('  3. Click "API Key" and copy it\n');
 
-    const apiKey = await prompts.text('Enter your Bing API Key:', {
+    const rawApiKey = await prompts.text('Enter your Bing API Key:', {
         validate: (v) => v.trim() ? undefined : 'No API Key provided.'
     });
+    const apiKey = rawApiKey.trim();
 
     printInfo('Verifying API key and fetching sites...');
     let allSites: any[] = [];

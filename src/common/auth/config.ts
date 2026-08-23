@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync, unlinkSync, statSync } from 'fs';
+import { readFileSync, writeFileSync, existsSync, unlinkSync, statSync, accessSync, constants } from 'fs';
 import { join, resolve } from 'path';
 import { homedir } from 'os';
 import { createCipheriv, createDecipheriv, scryptSync, randomBytes } from 'crypto';
@@ -211,9 +211,12 @@ export async function updateAccount(account: AccountConfig) {
  */
 export function isServiceAccountKeyMissing(account: AccountConfig): boolean {
     if (!account.serviceAccountPath) return false;
-    const resolved = resolve(String(account.serviceAccountPath).replace('~', homedir()));
+    const resolved = resolve(String(account.serviceAccountPath).replace(/^~(?=$|\/)/, homedir()));
     try {
-        return !statSync(resolved).isFile();
+        if (!statSync(resolved).isFile()) return true;
+        // statSync doesn't test effective read access
+        accessSync(resolved, constants.R_OK);
+        return false;
     } catch {
         return true;
     }

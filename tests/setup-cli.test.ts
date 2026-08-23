@@ -112,7 +112,7 @@ describe('CLI Commands', () => {
 
             const { login } = await import('../src/setup.js');
 
-            await expect(login()).rejects.toThrow('Process.exit(1)');
+            await expect(login()).rejects.toThrow('Auth rejected');
 
             expect(consoleSpy.error).toHaveBeenCalledWith(expect.stringContaining('Authentication failed: Auth rejected'));
         });

@@ -39,6 +39,7 @@ vi.mock('fs', () => ({
     statSync: vi.fn(),
     readFileSync: vi.fn(),
     writeFileSync: vi.fn(),
+    chmodSync: vi.fn(),
 }));
 
 vi.mock('readline', () => ({
@@ -307,8 +308,9 @@ describe('Setup Full', () => {
             expect(fs.writeFileSync).toHaveBeenCalledWith(
                 expect.stringContaining('.env'),
                 expect.stringContaining('PAGESPEED_API_KEY=my-pagespeed-key'),
-                'utf8'
+                { encoding: 'utf8', mode: 0o600 }
             );
+            expect(fs.chmodSync).toHaveBeenCalledWith(expect.stringContaining('.env'), 0o600);
         });
 
         it('should handle main menu exit', async () => {

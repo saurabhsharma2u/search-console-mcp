@@ -90,8 +90,10 @@ async function setupAdSense() {
             alias,
             adsenseAccountId: publisherId
         };
-        await updateAccount(account);
+        // Persist tokens first so a failed token save never leaves a
+        // configured account without credentials
         await saveTokensForAccount(account, tokens);
+        await updateAccount(account);
         printSuccess(`Successfully added AdSense account ${alias}!`);
         showMcpConfigSnippet();
 

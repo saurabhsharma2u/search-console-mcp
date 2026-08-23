@@ -10,10 +10,16 @@ Reliability is the core of this project. Any new tool or logic must be accompani
 We use **Vitest** for our unit and integration tests.
 
 ### Running Tests
-To run the full suite:
+To run the unit and integration tests:
 
 ```bash
 npm test
+```
+
+To run the full suite, including end-to-end tests:
+
+```bash
+npm run test:all
 ```
 
 ### End-to-End Tests

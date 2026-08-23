@@ -40,6 +40,7 @@ Search Console MCP puts **GSC, Bing, GA4, and AdSense** behind one
 set of tools your AI agent can call directly, and does the analysis
 (cannibalization, anomaly detection, revenue attribution) *before*
 the data ever reaches your context window.
+
 |              | Before                         | After                                           |
 | ------------ | ------------------------------ | ------------------------------------------------ |
 | **Data**     | 4 dashboards, manual exports   | 1 unified context                               |

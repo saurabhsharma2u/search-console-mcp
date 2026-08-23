@@ -100,15 +100,13 @@ async function setupGA4ServiceAccount() {
 
     // Fetch properties
     printStep(3, 'Select your GA4 property');
-    const { propertyId, auth } = await withSpinner('Fetching available GA4 properties...', async () => {
-        const auth = new google.auth.GoogleAuth({
-            keyFile: keyPath,
-            scopes: ['https://www.googleapis.com/auth/analytics.readonly']
-        });
-        const authClient = await auth.getClient();
-        const propertyId = await selectGA4Property(authClient);
-        return { propertyId, auth };
+    const auth = new google.auth.GoogleAuth({
+        keyFile: keyPath,
+        scopes: ['https://www.googleapis.com/auth/analytics.readonly']
     });
+    const authClient = await withSpinner('Authenticating with Google APIs...', () => auth.getClient());
+    // Interactive selection must run outside the spinner
+    const propertyId = await selectGA4Property(authClient);
 
     if (!propertyId) {
         printError('No property selected. Setup cancelled.');

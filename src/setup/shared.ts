@@ -143,7 +143,7 @@ export function validateKeyFile(path: string): ServiceAccountKey | null {
         printError(pathError);
         return null;
     }
-    const expandedPath = resolve(path.trim().replace(/\0/g, '').replace('~', homedir()));
+    const expandedPath = resolve(path.trim().replace(/\0/g, '').replace(/^~(?=$|\/)/, homedir()));
     const { key, error } = parseServiceAccountKey(expandedPath);
     if (error || !key) {
         printError(error || 'Invalid service account key.');
@@ -174,7 +174,7 @@ export async function acquireServiceAccountKey(): Promise<{ key: ServiceAccountK
             const keyPath = await prompts.text('Enter the path to your JSON key file:', {
                 validate: validateKeyFilePath,
             });
-            const fullPath = resolve(keyPath.trim().replace(/\0/g, '').replace('~', homedir()));
+            const fullPath = resolve(keyPath.trim().replace(/\0/g, '').replace(/^~(?=$|\/)/, homedir()));
             const { key, error } = parseServiceAccountKey(fullPath);
             if (error || !key) {
                 printError(error || 'Invalid service account key.');
@@ -289,7 +289,7 @@ export function renderDiagnostics(results: any[]) {
     log(border);
     for (const r of rows) {
         const symbol = r.ok ? `${colors.green}✔${colors.reset}` : `${colors.red}✘${colors.reset}`;
-        const statusCell = ' ' + symbol + ' '.repeat(widths.status - 1);
+        const statusCell = ' ' + symbol + ' '.repeat(widths.status);
         log('|'
             + cell(r.engine, widths.engine) + '|'
             + cell(r.account, widths.account) + '|'

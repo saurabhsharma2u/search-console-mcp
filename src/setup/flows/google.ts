@@ -116,7 +116,7 @@ export async function login() {
         if (error instanceof CancelledError) throw error;
         printError(`Authentication failed: ${(error as Error).message}`);
         log('\nTip: Ensure you are using a "Desktop Application" Client ID type in the Cloud Console.');
-        process.exit(1);
+        throw error;
     }
 }
 
@@ -145,7 +145,7 @@ async function setupServiceAccount() {
     const acquired = await acquireServiceAccountKey();
     if (!acquired) {
         printError('No credentials file provided.');
-        process.exit(1);
+        return;
     }
 
     const { key, path: credentialsPath } = acquired;
@@ -170,7 +170,7 @@ async function setupServiceAccount() {
     if (connected) {
         printSuccess('Authentication successful!');
     } else {
-        process.exit(1);
+        return;
     }
 
     let selectedWebsites: string[] | undefined;

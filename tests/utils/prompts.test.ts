@@ -1,15 +1,17 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import {
     prompts, setPromptDriver, CancelledError, InteractiveRequiredError,
-    type PromptDriver,
+    NonInteractiveDriver, type PromptDriver,
 } from '../../src/utils/prompts.js';
 import { ScriptedDriver } from '../helpers/scripted-driver.js';
 
 afterEach(() => setPromptDriver(null));
 
 describe('prompts adapter', () => {
-    it('defaults to a driver based on TTY availability', async () => {
-        // vitest runs without a TTY -> confirm falls back to initial value
+    it('non-TTY confirm resolves from initial value', async () => {
+        // Inject the non-interactive driver explicitly so this suite never
+        // depends on process.stdout.isTTY or reads stdin
+        setPromptDriver(new NonInteractiveDriver());
         const result = await prompts.confirm('Anything?', true);
         expect(result).toBe(true);
     });

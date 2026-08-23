@@ -97,7 +97,7 @@ class ClackDriver implements PromptDriver {
     }
 }
 
-class NonInteractiveDriver implements PromptDriver {
+export class NonInteractiveDriver implements PromptDriver {
     async select<T>(message: string, _options: SelectOption<T>[]): Promise<T> {
         throw new InteractiveRequiredError(
             `"${message}" requires an interactive terminal, or an explicit flag/default.`

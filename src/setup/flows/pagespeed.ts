@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync, chmodSync } from 'fs';
 import { resolve } from 'path';
 import { prompts } from '../../utils/prompts.js';
 import { colors } from '../../utils/ui.js';
@@ -18,11 +18,13 @@ export async function configurePageSpeed() {
 
     const envPath = resolve('.env');
     let envContent = '';
+    // Anchor to line start so variables like MY_PAGESPEED_API_KEY aren't matched
+    const keyLine = /^PAGESPEED_API_KEY=.*$/m;
 
     if (existsSync(envPath)) {
         envContent = readFileSync(envPath, 'utf8');
-        if (envContent.includes('PAGESPEED_API_KEY=')) {
-            envContent = envContent.replace(/PAGESPEED_API_KEY=.*/, `PAGESPEED_API_KEY=${apiKey}`);
+        if (keyLine.test(envContent)) {
+            envContent = envContent.replace(keyLine, `PAGESPEED_API_KEY=${apiKey}`);
         } else {
             envContent += `\nPAGESPEED_API_KEY=${apiKey}\n`;
         }
@@ -30,8 +32,8 @@ export async function configurePageSpeed() {
         const examplePath = resolve('.env.example');
         if (existsSync(examplePath)) {
             envContent = readFileSync(examplePath, 'utf8');
-            if (envContent.includes('PAGESPEED_API_KEY=')) {
-                envContent = envContent.replace(/PAGESPEED_API_KEY=.*/, `PAGESPEED_API_KEY=${apiKey}`);
+            if (keyLine.test(envContent)) {
+                envContent = envContent.replace(keyLine, `PAGESPEED_API_KEY=${apiKey}`);
             } else {
                 envContent += `\nPAGESPEED_API_KEY=${apiKey}\n`;
             }
@@ -40,7 +42,8 @@ export async function configurePageSpeed() {
         }
     }
 
-    writeFileSync(envPath, envContent, 'utf8');
+    writeFileSync(envPath, envContent, { encoding: 'utf8', mode: 0o600 });
+    chmodSync(envPath, 0o600);
     printSuccess('Successfully wrote PAGESPEED_API_KEY to .env file!');
 
     log(`\n${colors.bold}Note for MCP Client integration:${colors.reset}`);

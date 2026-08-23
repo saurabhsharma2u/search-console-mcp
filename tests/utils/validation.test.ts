@@ -1,18 +1,15 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { writeFileSync, mkdirSync, rmSync } from 'fs';
+import { describe, it, expect, afterAll } from 'vitest';
+import { writeFileSync, mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
 import { join } from 'path';
 import {
     validateAlias, validateEmail, validateKeyFilePath,
     parseServiceAccountKey, parseServiceAccountJson,
 } from '../../src/utils/validation.js';
 
-const tmpDir = '/var/folders/0n/hb8kpk3j23l484zmf_pp7cc40000gn/T/opencode/validation-test';
+const tmpDir = mkdtempSync(join(tmpdir(), 'validation-test-'));
 
 describe('validation helpers', () => {
-    beforeAll(() => {
-        mkdirSync(tmpDir, { recursive: true });
-    });
-
     afterAll(() => {
         rmSync(tmpDir, { recursive: true, force: true });
     });
