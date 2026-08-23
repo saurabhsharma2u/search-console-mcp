@@ -2,9 +2,9 @@
 
 # 🔍 Search Console MCP
 
-**Google Search Console + Bing Webmaster Tools + GA4 — in one context window.**
+**Google Search Console + Bing Webmaster Tools + GA4 + AdSense — in one context window.**
 
-Stop exporting CSVs. Start asking your AI agent questions.
+Stop exporting CSVs. Start asking your AI agent questions about your site's traffic, rankings, and revenue.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Tests](https://github.com/saurabhsharma2u/search-console-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/saurabhsharma2u/search-console-mcp/actions/workflows/ci.yml)
@@ -31,16 +31,21 @@ Stop exporting CSVs. Start asking your AI agent questions.
 
 ## Why this exists
 
-SEO data lives in three different silos. Answering one question — *"did my traffic drop because of a ranking loss or a UX issue?"* — usually means logging into three dashboards, exporting three CSVs, and doing VLOOKUPs by hand.
+Site data lives in four different silos. Answering one question —
+*"did my ad revenue drop because of a traffic dip or a lower RPM?"*
+— usually means logging into four dashboards, exporting four CSVs,
+and doing VLOOKUPs by hand.
 
-Search Console MCP puts **GSC, Bing, and GA4** behind one set of tools your AI agent can call directly, and does the SEO math (cannibalization, anomaly detection, opportunity scoring) *before* the data ever reaches your context window — so your agent gets insights, not spreadsheets.
-
-| | Before | After |
-|---|---|---|
-| **Data** | 3 dashboards, manual exports | 1 unified context |
-| **Analysis** | Manual VLOOKUPs & pivot tables | Deterministic SEO math, done server-side |
-| **Accounts** | Constant re-login | 20+ accounts, auto-resolved per site |
-| **Insight** | Raw rows, agent guesses | Curated signals (opportunity scores, anomalies) |
+Search Console MCP puts **GSC, Bing, GA4, and AdSense** behind one
+set of tools your AI agent can call directly, and does the analysis
+(cannibalization, anomaly detection, revenue attribution) *before*
+the data ever reaches your context window.
+|              | Before                         | After                                           |
+| ------------ | ------------------------------ | ------------------------------------------------ |
+| **Data**     | 4 dashboards, manual exports   | 1 unified context                               |
+| **Analysis** | Manual VLOOKUPs & pivot tables | Deterministic SEO + revenue math, server-side    |
+| **Accounts** | Constant re-login              | 20+ accounts, auto-resolved per site            |
+| **Insight**  | Raw rows, agent guesses        | Curated signals (opportunity scores, anomalies)  |
 
 ---
 

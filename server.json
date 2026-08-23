@@ -2,19 +2,19 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.saurabhsharma2u/search-console-mcp",
   "title": "Search Console MCP",
-  "description": "Google Search Console + Bing Webmaster Tools + GA4 — unified SEO intelligence for AI agents.",
+  "description": "Google Search Console + Bing Webmaster Tools + GA4 + Adsense — unified SEO intelligence for AI agents.",
   "websiteUrl": "https://searchconsolemcp.saurabh.app",
   "license": "MIT",
   "repository": {
     "url": "https://github.com/saurabhsharma2u/search-console-mcp",
     "source": "github"
   },
-  "version": "2.0.3",
+  "version": "2.1.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "search-console-mcp",
-      "version": "2.0.3",
+      "version": "2.1.0",
       "transport": {
         "type": "stdio"
       },
