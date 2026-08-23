@@ -1,6 +1,6 @@
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import { google } from 'googleapis';
-import { AccountConfig, loadConfig } from '../common/auth/config.js';
+import { AccountConfig, loadConfig, assertServiceAccountKeyReadable } from '../common/auth/config.js';
 import { resolveAccount } from '../common/auth/resolver.js';
 import { loadTokensForAccount, saveTokensForAccount, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET } from '../google/client.js';
 
@@ -142,6 +142,7 @@ export async function getGA4Client(propertyId?: string, accountId?: string): Pro
 
     // 3. Support Service Account Path
     if (account.serviceAccountPath) {
+        assertServiceAccountKeyReadable(account);
         client = new BetaAnalyticsDataClient({
             keyFilename: account.serviceAccountPath
         });

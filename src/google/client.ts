@@ -1,6 +1,6 @@
 import { google, searchconsole_v1 } from 'googleapis';
 import nodeMachineId from 'node-machine-id';
-import { AccountConfig, loadConfig, saveConfig, updateAccount, removeAccount } from '../common/auth/config.js';
+import { AccountConfig, loadConfig, saveConfig, updateAccount, removeAccount, assertServiceAccountKeyReadable } from '../common/auth/config.js';
 import { resolveAccount } from '../common/auth/resolver.js';
 import { logger } from '../utils/logger.js';
 const { machineIdSync } = nodeMachineId;
@@ -72,6 +72,7 @@ export async function getSearchConsoleClient(siteUrl?: string, accountId?: strin
 
   // 3. Support Service Account Path (Multi-Account)
   if (account.serviceAccountPath) {
+    assertServiceAccountKeyReadable(account);
     const auth = new google.auth.GoogleAuth({
       keyFilename: account.serviceAccountPath,
       scopes: SCOPES
@@ -170,6 +171,7 @@ export async function getIndexingClient(siteUrl?: string, accountId?: string): P
 
   // 3. Support Service Account Path
   if (account.serviceAccountPath) {
+    assertServiceAccountKeyReadable(account);
     const auth = new google.auth.GoogleAuth({
       keyFilename: account.serviceAccountPath,
       scopes: INDEXING_SCOPES

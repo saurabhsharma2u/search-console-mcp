@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import type { adsense_v2 } from 'googleapis';
-import { AccountConfig, loadConfig } from '../common/auth/config.js';
+import { AccountConfig, loadConfig, assertServiceAccountKeyReadable } from '../common/auth/config.js';
 import { loadTokensForAccount, saveTokensForAccount, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET } from '../google/client.js';
 
 const ADSENSE_VERSION = 'v2';
@@ -119,6 +119,7 @@ export async function getAdsenseClient(accountId?: string): Promise<AdSenseClien
 
     // 3. Support Service Account Path
     if (account.serviceAccountPath) {
+        assertServiceAccountKeyReadable(account);
         const auth = new google.auth.GoogleAuth({
             keyFile: account.serviceAccountPath,
             scopes: ['https://www.googleapis.com/auth/adsense.readonly']

@@ -1,5 +1,5 @@
-import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'fs';
-import { join } from 'path';
+import { readFileSync, writeFileSync, existsSync, unlinkSync, statSync } from 'fs';
+import { join, resolve } from 'path';
 import { homedir } from 'os';
 import { createCipheriv, createDecipheriv, scryptSync, randomBytes } from 'crypto';
 import nodeMachineId from 'node-machine-id';
@@ -202,6 +202,37 @@ export async function updateAccount(account: AccountConfig) {
     const config = await loadConfig();
     config.accounts[account.id] = account;
     await saveConfig(config);
+}
+
+/**
+ * True when the account references a service account key file that no
+ * longer exists on disk. Used by status display (⚠ key file missing)
+ * and as a pre-flight check before client construction.
+ */
+export function isServiceAccountKeyMissing(account: AccountConfig): boolean {
+    if (!account.serviceAccountPath) return false;
+    const resolved = resolve(String(account.serviceAccountPath).replace('~', homedir()));
+    try {
+        return !statSync(resolved).isFile();
+    } catch {
+        return true;
+    }
+}
+
+/**
+ * Throws a resolution-style error if the account's SA key file is gone,
+ * so callers get actionable guidance instead of a raw ENOENT from deep
+ * inside google-auth-library.
+ */
+export function assertServiceAccountKeyReadable(account: AccountConfig): void {
+    if (!isServiceAccountKeyMissing(account)) return;
+    const resolved = resolve(String(account.serviceAccountPath).replace('~', homedir()));
+    const err: any = new Error(
+        `Service account key file no longer exists at "${resolved}". Re-run setup to provide a new key.`
+    );
+    err.code = 'KEY_FILE_MISSING';
+    err.resolution = { command: `search-console-mcp setup --engine=${account.engine}` };
+    throw err;
 }
 
 export async function removeAccount(accountId: string) {

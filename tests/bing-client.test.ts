@@ -5,6 +5,8 @@ import * as resolverModule from '../src/common/auth/resolver.js';
 
 // Mock dependencies
 vi.mock('../src/common/auth/config.js', () => ({
+    assertServiceAccountKeyReadable: vi.fn(),
+    isServiceAccountKeyMissing: vi.fn(() => false),
     loadConfig: vi.fn(),
 }));
 

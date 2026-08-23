@@ -10,7 +10,7 @@ import {
     validateKeyFilePath, parseServiceAccountKey, parseServiceAccountJson,
     ServiceAccountKey,
 } from '../utils/validation.js';
-import { loadConfig, saveConfig } from '../common/auth/config.js';
+import { loadConfig, saveConfig, isServiceAccountKeyMissing } from '../common/auth/config.js';
 
 /**
  * Shared helpers for setup flows. All UI output goes to stderr —
@@ -71,11 +71,18 @@ export interface ConfigStatus {
 export async function detectConfig(): Promise<ConfigStatus> {
     const config = await loadConfig();
     const accounts = Object.values(config.accounts);
+    // Shallow-copy with a derived flag so stale SA paths surface as
+    // "key file missing" instead of a false "connected". Copies avoid
+    // mutating the cached config objects.
+    const withKeyFlag = <T extends { serviceAccountPath?: string }>(a: T) => ({
+        ...a,
+        keyFileMissing: isServiceAccountKeyMissing(a as any),
+    });
     return {
-        googleAccounts: accounts.filter(a => a.engine === 'google'),
-        bingAccounts: accounts.filter(a => a.engine === 'bing'),
-        ga4Accounts: accounts.filter(a => a.engine === 'ga4'),
-        adsenseAccounts: accounts.filter(a => a.engine === 'adsense'),
+        googleAccounts: accounts.filter(a => a.engine === 'google').map(withKeyFlag),
+        bingAccounts: accounts.filter(a => a.engine === 'bing').map(withKeyFlag),
+        ga4Accounts: accounts.filter(a => a.engine === 'ga4').map(withKeyFlag),
+        adsenseAccounts: accounts.filter(a => a.engine === 'adsense').map(withKeyFlag),
         legacyBing: !!process.env.BING_API_KEY,
         pagespeedApiKey: !!process.env.PAGESPEED_API_KEY
     };

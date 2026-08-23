@@ -10,6 +10,8 @@ vi.mock('../../src/adsense/client.js', () => ({
 }));
 
 vi.mock('../../src/common/auth/config.js', () => ({
+    assertServiceAccountKeyReadable: vi.fn(),
+    isServiceAccountKeyMissing: vi.fn(() => false),
     loadConfig: vi.fn()
 }));
 

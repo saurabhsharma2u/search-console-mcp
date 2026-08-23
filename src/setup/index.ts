@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { prompts, CancelledError, InteractiveRequiredError } from '../utils/prompts.js';
 import { colors } from '../utils/ui.js';
+import { isServiceAccountKeyMissing } from '../common/auth/config.js';
 import { FLOWS } from './registry.js';
 import {
     log, printBanner, printInfo, printError,
@@ -9,7 +10,21 @@ import {
 
 const VALID_ENGINES = [...FLOWS.map(f => f.id)];
 
-function menuLabel(flow: (typeof FLOWS)[number], configured: boolean): string {
+function hasMissingKey(status: any, flowId: string): boolean {
+    const keyMap: Record<string, string> = {
+        google: 'googleAccounts',
+        ga4: 'ga4Accounts',
+        adsense: 'adsenseAccounts',
+    };
+    const arr = status[keyMap[flowId]];
+    return Array.isArray(arr) && arr.some((a: any) => a.keyFileMissing);
+}
+
+function menuLabel(flow: (typeof FLOWS)[number], status: any): string {
+    const configured = flow.isConfigured(status);
+    if (configured && hasMissingKey(status, flow.id)) {
+        return `${colors.yellow}⚠${colors.reset} ${flow.label}${colors.dim} · key file missing${colors.reset}`;
+    }
     const dot = configured ? `${colors.green}●${colors.reset}` : `${colors.dim}○${colors.reset}`;
     const suffix = configured ? `${colors.dim} · connected${colors.reset}` : '';
     return `${dot} ${flow.label}${suffix}`;
@@ -17,9 +32,7 @@ function menuLabel(flow: (typeof FLOWS)[number], configured: boolean): string {
 
 function statusHint(configured: boolean, flow: (typeof FLOWS)[number]): string | undefined {
     return configured ? 'select to reconfigure' : flow.description;
-}
-
-export async function main() {
+}export async function main() {
     const args = process.argv.slice(2);
 
     // `--accounts` passthrough for developer convenience
@@ -47,6 +60,8 @@ export async function main() {
                 websites: a.websites || [],
                 ga4PropertyId: a.ga4PropertyId,
                 adsenseAccountId: a.adsenseAccountId,
+                serviceAccountPath: a.serviceAccountPath,
+                keyFileMissing: isServiceAccountKeyMissing(a),
             })),
         }, null, 2) + '\n');
         return;
@@ -90,12 +105,12 @@ export async function main() {
             choice = await prompts.select('What would you like to configure?', [
                 ...primary.map(f => ({
                     value: f.id,
-                    label: menuLabel(f, f.isConfigured(configStatus)),
+                    label: menuLabel(f, configStatus),
                     hint: statusHint(f.isConfigured(configStatus), f),
                 })),
                 ...advanced.map(f => ({
                     value: f.id,
-                    label: menuLabel(f, f.isConfigured(configStatus)),
+                    label: menuLabel(f, configStatus),
                     hint: statusHint(f.isConfigured(configStatus), f),
                 })),
                 { value: '__diagnostics', label: 'Run diagnostics', hint: 'Check the health of configured platforms' },

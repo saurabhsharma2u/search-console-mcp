@@ -4,6 +4,8 @@ import * as configModule from '../../src/common/auth/config.js';
 
 // Mock dependencies
 vi.mock('../../src/common/auth/config.js', () => ({
+    assertServiceAccountKeyReadable: vi.fn(),
+    isServiceAccountKeyMissing: vi.fn(() => false),
     loadConfig: vi.fn(),
 }));
 

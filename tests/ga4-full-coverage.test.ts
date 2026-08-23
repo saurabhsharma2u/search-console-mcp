@@ -42,6 +42,8 @@ vi.mock('@google-analytics/data', () => {
 });
 
 vi.mock('../src/common/auth/config.js', () => ({
+    assertServiceAccountKeyReadable: vi.fn(),
+    isServiceAccountKeyMissing: vi.fn(() => false),
   loadConfig: vi.fn().mockResolvedValue({
     accounts: {
       ga4_acc: {

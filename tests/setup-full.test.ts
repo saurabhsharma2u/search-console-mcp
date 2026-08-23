@@ -46,6 +46,8 @@ vi.mock('readline', () => ({
 }));
 
 vi.mock('../src/common/auth/config.js', () => ({
+    assertServiceAccountKeyReadable: vi.fn(),
+    isServiceAccountKeyMissing: vi.fn(() => false),
     loadConfig: vi.fn(),
     updateAccount: vi.fn(),
     saveConfig: vi.fn(),

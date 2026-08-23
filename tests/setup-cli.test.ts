@@ -33,6 +33,8 @@ vi.mock('googleapis', () => ({
 
 // Mock the config module
 vi.mock('../src/common/auth/config.js', () => ({
+    assertServiceAccountKeyReadable: vi.fn(),
+    isServiceAccountKeyMissing: vi.fn(() => false),
     loadConfig: vi.fn().mockResolvedValue({ accounts: {} }),
     updateAccount: vi.fn().mockResolvedValue(undefined),
     saveConfig: vi.fn().mockResolvedValue(undefined),
