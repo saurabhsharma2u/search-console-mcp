@@ -178,8 +178,10 @@ Search Console MCP v2.0 features **7 Fluent Domain Tools** that handle all SEO, 
 | Tool | Parameters | Description |
 |---|---|---|
 | `adsense_accounts` | `mode: "configured" \| "discover"`, `accountId` | Lists configured or discoverable AdSense publisher accounts |
-| `adsense_report` | `dateRange`, `startDate`, `endDate`, `dimensions`, `metrics`, `rowLimit` | Earnings, impressions, clicks, CTR & RPM with dimension breakdowns |
+| `adsense_report` | `dateRange`, `startDate`, `endDate`, `dimensions`, `metrics`, `orderBy`, `rowLimit`, `accountId` | Earnings, impressions, clicks, CTR & RPM with dimension breakdowns. Custom dates override `dateRange`. |
 | `adsense_payments_alerts` | `accountId` | Outstanding payments and account alerts (policy issues, payment holds) |
+
+> **Note:** `accountId` refers to the configured profile ID (e.g. `adsense_2`, as shown by `accounts_manage`), not a publisher resource name like `accounts/pub-123`.
 
 <details>
 <summary><strong>Backward Compatibility Notice (96+ Legacy Tools)</strong></summary>

@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 
 vi.mock('fs');
-vi.mock('os');
+vi.mock('os', () => ({ homedir: vi.fn(() => '/tmp') }));
 
 describe('get_started tool', () => {
   const originalEnv = process.env;

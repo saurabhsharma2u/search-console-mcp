@@ -1,6 +1,6 @@
 import { google } from 'googleapis';
 import type { adsense_v2 } from 'googleapis';
-import { AccountConfig, loadConfig, assertServiceAccountKeyReadable } from '../common/auth/config.js';
+import { AccountConfig, loadConfig } from '../common/auth/config.js';
 import { loadTokensForAccount, saveTokensForAccount, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET } from '../google/client.js';
 
 const ADSENSE_VERSION = 'v2';
@@ -19,10 +19,17 @@ export class AdSenseClient {
     }
 
     async listAccounts() {
-        const res = await this.client.accounts.list({
-            pageSize: 100,
-        });
-        return res.data.accounts || [];
+        const accounts: adsense_v2.Schema$Account[] = [];
+        let pageToken: string | undefined;
+        do {
+            const res = await this.client.accounts.list({
+                pageSize: 100,
+                pageToken,
+            });
+            accounts.push(...(res.data.accounts || []));
+            pageToken = res.data.nextPageToken || undefined;
+        } while (pageToken);
+        return accounts;
     }
 
     async generateReport(options: adsense_v2.Params$Resource$Accounts$Reports$Generate) {
@@ -103,8 +110,14 @@ export async function getAdsenseClient(accountId?: string): Promise<AdSenseClien
             // Check for expiry (refresh if needed)
             if (tokens.expiry_date && tokens.expiry_date <= Date.now()) {
                 const { credentials } = await oauth2Client.refreshAccessToken();
-                await saveTokensForAccount(account, credentials);
-                oauth2Client.setCredentials(credentials);
+                // Google may omit refresh_token on refresh; keep the stored one
+                const merged = {
+                    ...tokens,
+                    ...credentials,
+                    refresh_token: credentials.refresh_token || tokens.refresh_token,
+                };
+                await saveTokensForAccount(account, merged);
+                oauth2Client.setCredentials(merged);
             }
 
             client = google.adsense({ version: ADSENSE_VERSION, auth: oauth2Client });
@@ -117,32 +130,10 @@ export async function getAdsenseClient(accountId?: string): Promise<AdSenseClien
         }
     }
 
-    // 3. Support Service Account Path
-    if (account.serviceAccountPath) {
-        assertServiceAccountKeyReadable(account);
-        const auth = new google.auth.GoogleAuth({
-            keyFile: account.serviceAccountPath,
-            scopes: ['https://www.googleapis.com/auth/adsense.readonly']
-        });
-        client = google.adsense({ version: ADSENSE_VERSION, auth });
-        const adSenseClient = new AdSenseClient(client, publisherId);
-        cacheClient(cacheKey, adSenseClient);
-        return adSenseClient;
-    }
-
-    // 4. Fallback to Environment Variables (Google Application Credentials)
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-        const auth = new google.auth.GoogleAuth({
-            keyFile: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-            scopes: ['https://www.googleapis.com/auth/adsense.readonly']
-        });
-        client = google.adsense({ version: ADSENSE_VERSION, auth });
-        const adSenseClient = new AdSenseClient(client, publisherId);
-        cacheClient(cacheKey, adSenseClient);
-        return adSenseClient;
-    }
-
-    throw new Error(`Authentication configuration not found for account ${account.alias}.`);
+    throw new Error(
+        `AdSense requires user-authorized OAuth 2.0 (the AdSense Management API does not support service accounts). ` +
+        `Re-authorize account "${account.alias}" with: search-console-mcp setup --engine=adsense`
+    );
 }
 
 function cacheClient(key: string, client: AdSenseClient) {

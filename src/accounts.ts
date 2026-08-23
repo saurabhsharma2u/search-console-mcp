@@ -39,7 +39,8 @@ export async function main(args: string[]) {
                         command: "search-console-mcp setup",
                         google: "search-console-mcp setup --engine=google",
                         bing: "search-console-mcp setup --engine=bing",
-                        ga4: "search-console-mcp setup --engine=ga4"
+                        ga4: "search-console-mcp setup --engine=ga4",
+                        adsense: "search-console-mcp setup --engine=adsense"
                     },
                     setup_instructions: {
                         google: [
@@ -56,6 +57,11 @@ export async function main(args: string[]) {
                             "Run: search-console-mcp setup --engine=ga4",
                             "Choose Service Account (OAuth coming soon)",
                             "Add the service account email to your GA4 property"
+                        ],
+                        adsense: [
+                            "Run: search-console-mcp setup --engine=adsense",
+                            "Authorize with your Google account (read-only AdSense scope)",
+                            "Select the publisher account to connect"
                         ]
                     }
                 }, null, 2));

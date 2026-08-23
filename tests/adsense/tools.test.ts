@@ -67,17 +67,29 @@ describe('generateReport', () => {
         mockGenerate.mockResolvedValue({ headers: [], rows: [] });
 
         await generateReport({
-            dimensions: ['DATE', 'DOMAIN'],
+            dimensions: ['DATE', 'DOMAIN_NAME'],
             orderBy: '-ESTIMATED_EARNINGS',
             rowLimit: 25,
             metrics: ['CLICKS']
         });
 
         const call = mockGenerate.mock.calls[0][0];
-        expect(call.dimensions).toEqual(['DATE', 'DOMAIN']);
+        expect(call.dimensions).toEqual(['DATE', 'DOMAIN_NAME']);
         expect(call.orderBy).toEqual(['-ESTIMATED_EARNINGS']);
         expect(call.limit).toBe(25);
         expect(call.metrics).toEqual(['CLICKS']);
+    });
+
+    it('custom dates override a preset dateRange', async () => {
+        mockGenerate.mockResolvedValue({ headers: [], rows: [] });
+
+        await generateReport({ dateRange: 'LAST_7_DAYS', startDate: '2026-02-01', endDate: '2026-02-28' });
+
+        expect(mockGenerate).toHaveBeenCalledWith(expect.objectContaining({
+            dateRange: 'CUSTOM',
+            'startDate.year': 2026,
+            'endDate.day': 28
+        }));
     });
 
     it('includes totals and averages when present', async () => {

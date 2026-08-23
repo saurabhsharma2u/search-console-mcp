@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 
 vi.mock('fs');
-vi.mock('os');
+vi.mock('os', () => ({ homedir: vi.fn(() => '/tmp') }));
 
 describe('Prompts registration', () => {
   const originalEnv = process.env;
@@ -27,7 +27,7 @@ describe('Prompts registration', () => {
     process.env = originalEnv;
   });
 
-  it('should register all 14 prompts', () => {
+  it('should register all 14 prompts', async () => {
     registerPrompts(mockServer as McpServer);
     const calls = mockServer.prompt.mock.calls;
     const registeredNames = calls.map((c: any) => c[0]);
@@ -49,7 +49,7 @@ describe('Prompts registration', () => {
     expect(registeredNames).toHaveLength(14);
   });
 
-  it('should generate Google-specific workflow when Google is enabled', () => {
+  it('should generate Google-specific workflow when Google is enabled', async () => {
     process.env.GOOGLE_APPLICATION_CREDENTIALS = 'fake-path.json';
     delete process.env.BING_API_KEY;
 
@@ -58,7 +58,7 @@ describe('Prompts registration', () => {
     // Check investigate_traffic_drop
     const dropPrompt = mockServer.prompt.mock.calls.find((c: any) => c[0] === 'investigate_traffic_drop');
     const dropHandler = dropPrompt[2];
-    const dropResult = dropHandler({ site_url: 'http://example.com' });
+    const dropResult = await dropHandler({ site_url: 'http://example.com' });
     const dropText = dropResult.messages[0].content.text;
     expect(dropText).toContain("analytics_anomalies");
     expect(dropText).not.toContain("bing_analytics_detect_anomalies");
@@ -66,13 +66,13 @@ describe('Prompts registration', () => {
     // Check full_site_audit
     const auditPrompt = mockServer.prompt.mock.calls.find((c: any) => c[0] === 'full_site_audit');
     const auditHandler = auditPrompt[2];
-    const auditResult = auditHandler({ site_url: 'http://example.com' });
+    const auditResult = await auditHandler({ site_url: 'http://example.com' });
     const auditText = auditResult.messages[0].content.text;
     expect(auditText).toContain("sites_list");
     expect(auditText).not.toContain("bing_sites_health");
   });
 
-  it('should generate Bing-specific workflow with numbered steps when Bing is enabled', () => {
+  it('should generate Bing-specific workflow with numbered steps when Bing is enabled', async () => {
     delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
     delete process.env.GOOGLE_CLIENT_EMAIL;
     delete process.env.GOOGLE_PRIVATE_KEY;
@@ -83,7 +83,7 @@ describe('Prompts registration', () => {
     // Check investigate_traffic_drop — Bing should get numbered steps, not "For Bing:" prefix
     const dropPrompt = mockServer.prompt.mock.calls.find((c: any) => c[0] === 'investigate_traffic_drop');
     const dropHandler = dropPrompt[2];
-    const dropResult = dropHandler({ site_url: 'http://example.com' });
+    const dropResult = await dropHandler({ site_url: 'http://example.com' });
     const dropText = dropResult.messages[0].content.text;
     expect(dropText).toContain("bing_analytics_detect_anomalies");
     expect(dropText).toContain("1.");  // Should have numbered steps
@@ -93,7 +93,7 @@ describe('Prompts registration', () => {
     // Check full_site_audit
     const auditPrompt = mockServer.prompt.mock.calls.find((c: any) => c[0] === 'full_site_audit');
     const auditHandler = auditPrompt[2];
-    const auditResult = auditHandler({ site_url: 'http://example.com' });
+    const auditResult = await auditHandler({ site_url: 'http://example.com' });
     const auditText = auditResult.messages[0].content.text;
     expect(auditText).toContain("bing_sites_health");
     expect(auditText).toContain("1.");
@@ -101,7 +101,7 @@ describe('Prompts registration', () => {
     expect(auditText).not.toContain("For Bing:");
   });
 
-  it('should evaluate platform detection at call time (not registration time)', () => {
+  it('should evaluate platform detection at call time (not registration time)', async () => {
     // Register with no platforms enabled
     delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
     delete process.env.GOOGLE_CLIENT_EMAIL;
@@ -114,17 +114,17 @@ describe('Prompts registration', () => {
     const dropHandler = dropPrompt[2];
 
     // Call with no platforms — should have no tool steps
-    const result1 = dropHandler({ site_url: 'http://example.com' });
+    const result1 = await dropHandler({ site_url: 'http://example.com' });
     expect(result1.messages[0].content.text).not.toContain("analytics_anomalies");
     expect(result1.messages[0].content.text).not.toContain("bing_analytics_detect_anomalies");
 
     // Now enable Google and call again — should pick up the change
     process.env.GOOGLE_APPLICATION_CREDENTIALS = 'fake-path.json';
-    const result2 = dropHandler({ site_url: 'http://example.com' });
+    const result2 = await dropHandler({ site_url: 'http://example.com' });
     expect(result2.messages[0].content.text).toContain("analytics_anomalies");
   });
 
-  it('should produce sequential step numbers even with optional parameters', () => {
+  it('should produce sequential step numbers even with optional parameters', async () => {
     process.env.GOOGLE_APPLICATION_CREDENTIALS = 'fake-path.json';
     delete process.env.BING_API_KEY;
 
@@ -133,7 +133,7 @@ describe('Prompts registration', () => {
     // full_site_audit WITHOUT brand_terms — steps should be sequential
     const auditPrompt = mockServer.prompt.mock.calls.find((c: any) => c[0] === 'full_site_audit');
     const auditHandler = auditPrompt[2];
-    const result = auditHandler({ site_url: 'http://example.com' });
+    const result = await auditHandler({ site_url: 'http://example.com' });
     const text = result.messages[0].content.text;
 
     // Extract step numbers
@@ -144,36 +144,36 @@ describe('Prompts registration', () => {
     }
   });
 
-  it('should include date_range in content_opportunity_report prompt text', () => {
+  it('should include date_range in content_opportunity_report prompt text', async () => {
     process.env.GOOGLE_APPLICATION_CREDENTIALS = 'fake-path.json';
 
     registerPrompts(mockServer as McpServer);
 
     const prompt = mockServer.prompt.mock.calls.find((c: any) => c[0] === 'content_opportunity_report');
     const handler = prompt[2];
-    const result = handler({ site_url: 'http://example.com', date_range: 'last 60 days' });
+    const result = await handler({ site_url: 'http://example.com', date_range: 'last 60 days' });
     expect(result.messages[0].content.text).toContain('last 60 days');
   });
 
-  it('should include compare_to in executive_summary prompt text', () => {
+  it('should include compare_to in executive_summary prompt text', async () => {
     process.env.GOOGLE_APPLICATION_CREDENTIALS = 'fake-path.json';
 
     registerPrompts(mockServer as McpServer);
 
     const prompt = mockServer.prompt.mock.calls.find((c: any) => c[0] === 'executive_summary');
     const handler = prompt[2];
-    const result = handler({ site_url: 'http://example.com', compare_to: 'last quarter' });
+    const result = await handler({ site_url: 'http://example.com', compare_to: 'last quarter' });
     expect(result.messages[0].content.text).toContain('last quarter');
   });
 
-  it('should sanitize brand_terms to prevent regex injection', () => {
+  it('should sanitize brand_terms to prevent regex injection', async () => {
     process.env.GOOGLE_APPLICATION_CREDENTIALS = 'fake-path.json';
 
     registerPrompts(mockServer as McpServer);
 
     const prompt = mockServer.prompt.mock.calls.find((c: any) => c[0] === 'full_site_audit');
     const handler = prompt[2];
-    const result = handler({ site_url: 'http://example.com', brand_terms: 'nike),evil(,air max' });
+    const result = await handler({ site_url: 'http://example.com', brand_terms: 'nike),evil(,air max' });
     const text = result.messages[0].content.text;
     // Should not contain raw parentheses from user input
     expect(text).not.toContain('),evil(');
@@ -181,7 +181,7 @@ describe('Prompts registration', () => {
     expect(text).toContain('air max');
   });
 
-  it('should handle neither-platform-enabled scenario gracefully', () => {
+  it('should handle neither-platform-enabled scenario gracefully', async () => {
     delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
     delete process.env.GOOGLE_CLIENT_EMAIL;
     delete process.env.GOOGLE_PRIVATE_KEY;
@@ -192,17 +192,17 @@ describe('Prompts registration', () => {
     // investigate_traffic_drop should still produce a synthesis step
     const dropPrompt = mockServer.prompt.mock.calls.find((c: any) => c[0] === 'investigate_traffic_drop');
     const dropHandler = dropPrompt[2];
-    const result = dropHandler({});
+    const result = await dropHandler({});
     expect(result.messages[0].content.text).toContain('Synthesize');
     expect(result.messages[0].content.text).toContain('the active site');
   });
 
-  it('should generate GA4 traffic audit steps', () => {
+  it('should generate GA4 traffic audit steps', async () => {
     registerPrompts(mockServer as McpServer);
 
     const ga4Prompt = mockServer.prompt.mock.calls.find((c: any) => c[0] === 'ga4_traffic_audit');
     const ga4Handler = ga4Prompt[2];
-    const result = ga4Handler({ property_id: '458548565', date_range: 'last 30 days' });
+    const result = await ga4Handler({ property_id: '458548565', date_range: 'last 30 days' });
     const text = result.messages[0].content.text;
 
     expect(text).toContain("analytics_traffic_sources");

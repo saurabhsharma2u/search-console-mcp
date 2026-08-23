@@ -32,8 +32,8 @@ function formatDateParts(parts: { year: number; month: number; day: number }): s
 export async function generateReport(args: ReportArgs) {
     const client = await getAdsenseClient(args.accountId);
 
-    const isCustom = args.startDate || args.endDate;
-    const dateRange = args.dateRange || (isCustom ? 'CUSTOM' : 'LAST_7_DAYS');
+    const hasCustomDates = args.startDate !== undefined || args.endDate !== undefined;
+    const dateRange = hasCustomDates ? 'CUSTOM' : (args.dateRange ?? 'LAST_7_DAYS');
 
     if (dateRange === 'CUSTOM' && (!args.startDate || !args.endDate)) {
         throw new Error('CUSTOM dateRange requires both startDate and endDate (YYYY-MM-DD).');

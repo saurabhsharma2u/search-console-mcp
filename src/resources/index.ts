@@ -102,15 +102,31 @@ export function registerMcpResources(server: McpServer): void {
     "adsense-payments",
     "seo://adsense/payments",
     {
-      description: "Outstanding AdSense payments balance and active account alerts for the first configured account.",
+      description: "Outstanding AdSense payments balance and active account alerts, keyed by configured account ID.",
       mimeType: "application/json",
     },
     async (uri) => {
       let payload: unknown;
       try {
-        const { listPayments, listAlerts } = await import("../adsense/tools/reports.js");
-        const [payments, alerts] = await Promise.all([listPayments(), listAlerts()]);
-        payload = { payments, alerts };
+        const { loadConfig } = await import("../common/auth/config.js");
+        const { getAdsenseClient } = await import("../adsense/client.js");
+        const config = await loadConfig();
+        const adAccounts = Object.values(config.accounts).filter(a => a.engine === 'adsense');
+        if (adAccounts.length === 0) {
+          throw new Error("No AdSense accounts configured. Run: search-console-mcp setup --engine=adsense");
+        }
+
+        const results: Record<string, unknown> = {};
+        for (const acc of adAccounts) {
+          try {
+            const client = await getAdsenseClient(acc.id);
+            const [payments, alerts] = await Promise.all([client.listPayments(), client.listAlerts()]);
+            results[acc.id] = { payments, alerts };
+          } catch (error) {
+            results[acc.id] = { error: `Unable to fetch AdSense data: ${(error as Error).message}` };
+          }
+        }
+        payload = results;
       } catch (error) {
         payload = { error: `Unable to fetch AdSense data: ${(error as Error).message}` };
       }

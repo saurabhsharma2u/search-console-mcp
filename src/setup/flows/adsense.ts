@@ -43,8 +43,13 @@ async function setupAdSense() {
 
         printInfo('Fetching available AdSense publisher accounts...');
         const adsense = google.adsense({ version: 'v2', auth: oauth2Client });
-        const res = await adsense.accounts.list({ pageSize: 100 });
-        const pubAccounts = res.data.accounts || [];
+        const pubAccounts: import("googleapis").adsense_v2.Schema$Account[] = [];
+        let pageToken: string | undefined;
+        do {
+            const res = await adsense.accounts.list({ pageSize: 100, pageToken });
+            pubAccounts.push(...(res.data.accounts || []));
+            pageToken = res.data.nextPageToken || undefined;
+        } while (pageToken);
 
         if (pubAccounts.length === 0) {
             printError('No AdSense publisher accounts found for this Google account.');

@@ -9,7 +9,7 @@ export const getStartedToolSchema = {};
 
 export async function getStartedHandler() {
     try {
-        const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = getEnabledPlatforms();
+        const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = await getEnabledPlatforms();
 
         const activePlatforms: Record<string, string> = {};
         if (isGoogleEnabled) activePlatforms["google"] = "Google Search Console (Search Analytics, Sitemaps, Inspection)";

@@ -257,7 +257,8 @@ registerTool(
     endDate: z.string().optional().describe("Custom end date YYYY-MM-DD (requires startDate)"),
     dimensions: z.array(z.enum(["DATE", "WEEK", "MONTH", "DOMAIN_NAME", "COUNTRY_NAME", "PLATFORM_TYPE_NAME", "AD_UNIT_ID", "AD_UNIT_NAME", "CUSTOM_CHANNEL_ID", "CUSTOM_CHANNEL_NAME", "PRODUCT_NAME", "PRODUCT_CODE", "URL_CHANNEL_ID"])).optional().describe("Breakdown dimensions"),
     metrics: z.array(z.enum(["ESTIMATED_EARNINGS", "PAGE_VIEWS", "IMPRESSIONS", "CLICKS", "PAGE_VIEWS_CTR", "PAGE_VIEWS_RPM", "IMPRESSIONS_CTR", "IMPRESSIONS_RPM"])).optional().describe("Metrics to report (default: earnings, page views, impressions, clicks, RPM)"),
-    rowLimit: z.number().optional().describe("Max rows to return (default: 100, max: 200)")
+    rowLimit: z.number().optional().describe("Max rows to return (default: 100, max: 200)"),
+    orderBy: z.string().optional().describe('Sort order as "+METRIC" (ascending) or "-METRIC" (descending), e.g. "-ESTIMATED_EARNINGS"')
   },
   async (args: any) => {
     const { generateReport } = await import("./adsense/tools/reports.js");
@@ -505,13 +506,14 @@ async function main() {
   const hasGA4 = accounts.some(a => a.engine === 'ga4');
   const hasAdSense = accounts.some(a => a.engine === 'adsense');
 
-  if (!hasGoogle && !hasBing && !hasGA4) {
+  if (!hasGoogle && !hasBing && !hasGA4 && !hasAdSense) {
     printBoxHeader('Authentication', colors.red);
 
     console.error(`${colors.bold}${colors.dim}🔍 Connection Status:${colors.reset}`);
     printStatusLine('Google', hasGoogle);
     printStatusLine('GA4', hasGA4);
     printStatusLine('Bing', hasBing);
+    printStatusLine('AdSense', hasAdSense);
     console.error('');
 
     if (!hasGoogle) {
@@ -527,6 +529,11 @@ async function main() {
     if (!hasBing) {
       console.error(`\n${colors.red}✘${colors.reset} ${colors.bold}Bing not configured.${colors.reset}`);
       console.error(`${colors.blue}ℹ${colors.reset} ${colors.dim}Run:${colors.reset} ${colors.bold}${colors.cyan}search-console-mcp setup --engine=bing${colors.reset}`);
+    }
+
+    if (!hasAdSense) {
+      console.error(`\n${colors.red}✘${colors.reset} ${colors.bold}AdSense not configured.${colors.reset}`);
+      console.error(`${colors.blue}ℹ${colors.reset} ${colors.dim}Run:${colors.reset} ${colors.bold}${colors.cyan}search-console-mcp setup --engine=adsense${colors.reset}`);
     }
 
     console.error(`\n${colors.dim}${'─'.repeat(64)}${colors.reset}\n`);

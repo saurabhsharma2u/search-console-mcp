@@ -53,8 +53,8 @@ export function registerPrompts(server: McpServer) {
             site_url: z.string().optional().describe("The URL of the site (optional, defaults to env/context)"),
             period: z.string().optional().describe("Period to analyze (default: 'last 28 days')")
         },
-        ({ site_url, period = "last 28 days" }) => {
-            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = getEnabledPlatforms();
+        async ({ site_url, period = "last 28 days" }) => {
+            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = await getEnabledPlatforms();
             const steps = new StepBuilder();
 
             if (isGoogleEnabled) {
@@ -99,8 +99,8 @@ export function registerPrompts(server: McpServer) {
             min_impressions: z.number().optional().describe("Minimum impressions threshold (default: 1000)"),
             date_range: z.string().optional().describe("Date range to analyze (default: 'last 90 days')")
         },
-        ({ site_url, min_impressions = 1000, date_range = "last 90 days" }) => {
-            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = getEnabledPlatforms();
+        async ({ site_url, min_impressions = 1000, date_range = "last 90 days" }) => {
+            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = await getEnabledPlatforms();
             const steps = new StepBuilder();
 
             if (isGoogleEnabled) {
@@ -140,8 +140,8 @@ export function registerPrompts(server: McpServer) {
             brand_terms: z.string().optional().describe("Comma-separated brand terms (e.g. 'nike,air max')"),
             date_range: z.string().optional().describe("Date range to analyze (default: 'last 90 days')")
         },
-        ({ site_url, brand_terms, date_range = "last 90 days" }) => {
-            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = getEnabledPlatforms();
+        async ({ site_url, brand_terms, date_range = "last 90 days" }) => {
+            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = await getEnabledPlatforms();
             const steps = new StepBuilder();
 
             if (isGoogleEnabled) {
@@ -191,8 +191,8 @@ export function registerPrompts(server: McpServer) {
             page_url: z.string().describe("The page URL to analyze"),
             date_range: z.string().optional().describe("Date range to analyze (default: 'last 28 days')")
         },
-        ({ page_url, date_range = "last 28 days" }) => {
-            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = getEnabledPlatforms();
+        async ({ page_url, date_range = "last 28 days" }) => {
+            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = await getEnabledPlatforms();
             const steps = new StepBuilder();
 
             if (isGoogleEnabled) {
@@ -232,8 +232,8 @@ export function registerPrompts(server: McpServer) {
             site_url: z.string().optional().describe("The URL of the site"),
             date_range: z.string().optional().describe("Date range (default: 'last 28 days')")
         },
-        ({ site_url, date_range = "last 28 days" }) => {
-            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = getEnabledPlatforms();
+        async ({ site_url, date_range = "last 28 days" }) => {
+            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = await getEnabledPlatforms();
             const steps = new StepBuilder();
 
             if (isGoogleEnabled && isBingEnabled) {
@@ -271,8 +271,8 @@ export function registerPrompts(server: McpServer) {
             site_url: z.string().optional().describe("The URL of the site"),
             date_range: z.string().optional().describe("Date range (default: 'last 90 days')")
         },
-        ({ site_url, date_range = "last 90 days" }) => {
-            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = getEnabledPlatforms();
+        async ({ site_url, date_range = "last 90 days" }) => {
+            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = await getEnabledPlatforms();
             const steps = new StepBuilder();
 
             if (isGoogleEnabled) {
@@ -311,8 +311,8 @@ export function registerPrompts(server: McpServer) {
             date_range: z.string().optional().describe("Date range (default: 'last 28 days')"),
             compare_to: z.string().optional().describe("Comparison period (default: 'previous period')")
         },
-        ({ site_url, brand_terms, date_range = "last 28 days", compare_to = "previous period" }) => {
-            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = getEnabledPlatforms();
+        async ({ site_url, brand_terms, date_range = "last 28 days", compare_to = "previous period" }) => {
+            const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = await getEnabledPlatforms();
             const steps = new StepBuilder();
 
             if (isGoogleEnabled) {
@@ -382,8 +382,8 @@ export function registerPrompts(server: McpServer) {
         {
             date_range: z.string().optional().describe("Date range to analyze (default: 'last 28 days')")
         },
-        ({ date_range = "last 28 days" }) => {
-            const { isAdSenseEnabled } = getEnabledPlatforms();
+        async ({ date_range = "last 28 days" }) => {
+            const { isAdSenseEnabled } = await getEnabledPlatforms();
             const steps = new StepBuilder();
 
             if (isAdSenseEnabled) {
@@ -415,8 +415,8 @@ export function registerPrompts(server: McpServer) {
         {
             date_range: z.string().optional().describe("Date range to analyze (default: 'last 30 days')")
         },
-        ({ date_range = "last 30 days" }) => {
-            const { isAdSenseEnabled } = getEnabledPlatforms();
+        async ({ date_range = "last 30 days" }) => {
+            const { isAdSenseEnabled } = await getEnabledPlatforms();
             const steps = new StepBuilder();
 
             if (isAdSenseEnabled) {

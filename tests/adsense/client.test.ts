@@ -70,20 +70,22 @@ describe('AdSenseClient', () => {
     });
 
     it('auto-selects a single adsense account and injects the account path into report calls', async () => {
+        const saveTokens = await import('../../src/google/client.js');
         (loadConfig as any).mockResolvedValue({
             accounts: {
                 'adsense_1': {
                     id: 'adsense_1',
                     engine: 'adsense',
                     alias: 'My AdSense',
-                    adsenseAccountId: 'accounts/pub-123',
-                    serviceAccountPath: 'test.json'
+                    adsenseAccountId: 'accounts/pub-123'
                 }
             }
         });
         mockGenerate.mockResolvedValue({ data: { headers: [], rows: [] } });
-        // No tokens -> falls through to the service-account path
-        delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        (saveTokens.loadTokensForAccount as any).mockResolvedValue({
+            refresh_token: 'r',
+            expiry_date: Date.now() + 3_600_000
+        });
 
         const client = await getAdsenseClient();
         expect(client.getPublisherId()).toBe('accounts/pub-123');
@@ -145,7 +147,7 @@ describe('AdSenseClient', () => {
         expect(mockRefreshAccessToken).toHaveBeenCalled();
         expect(saveTokens.saveTokensForAccount).toHaveBeenCalledWith(
             expect.objectContaining({ id: 'adsense_1' }),
-            { access_token: 'new' }
+            expect.objectContaining({ access_token: 'new', refresh_token: 'r' })
         );
     });
 
@@ -173,9 +175,8 @@ describe('AdSenseClient', () => {
         expect(client.getPublisherId()).toBe('accounts/pub-123');
     });
 
-    it('falls back to service account when token-based auth fails', async () => {
+    it('rejects service-account auth: the AdSense API only supports user OAuth', async () => {
         const saveTokens = await import('../../src/google/client.js');
-        const { google } = await import('googleapis');
         (loadConfig as any).mockResolvedValue({
             accounts: {
                 'adsense_1': {
@@ -187,23 +188,14 @@ describe('AdSenseClient', () => {
                 }
             }
         });
-        // Tokens exist but the adsense factory rejects them -> caught, falls through
-        (saveTokens.loadTokensForAccount as any).mockResolvedValue({ refresh_token: 'r', expiry_date: null });
-        mockAdsenseFactory.mockImplementationOnce(() => {
-            throw new Error('invalid_grant');
-        });
+        (saveTokens.loadTokensForAccount as any).mockResolvedValue(null);
+        delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-        const client = await getAdsenseClient();
-
-        expect(client.getPublisherId()).toBe('accounts/pub-123');
-        expect((google.auth as any).GoogleAuth).toHaveBeenCalledWith(expect.objectContaining({
-            keyFile: '/path/to/key.json'
-        }));
+        await expect(getAdsenseClient()).rejects.toThrow(/does not support service accounts.*setup --engine=adsense/s);
     });
 
-    it('falls back to GOOGLE_APPLICATION_CREDENTIALS env when no tokens or key file', async () => {
+    it('ignores GOOGLE_APPLICATION_CREDENTIALS env and directs to OAuth setup', async () => {
         const saveTokens = await import('../../src/google/client.js');
-        const { google } = await import('googleapis');
         process.env.GOOGLE_APPLICATION_CREDENTIALS = '/path/to/env-key.json';
         (loadConfig as any).mockResolvedValue({
             accounts: {
@@ -218,17 +210,13 @@ describe('AdSenseClient', () => {
         (saveTokens.loadTokensForAccount as any).mockResolvedValue(null);
 
         try {
-            const client = await getAdsenseClient();
-            expect(client.getPublisherId()).toBe('accounts/pub-123');
-            expect((google.auth as any).GoogleAuth).toHaveBeenCalledWith(expect.objectContaining({
-                keyFile: '/path/to/env-key.json'
-            }));
+            await expect(getAdsenseClient()).rejects.toThrow(/OAuth/);
         } finally {
             delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
         }
     });
 
-    it('throws when no auth path is available', async () => {
+    it('throws when no OAuth tokens are available', async () => {
         const saveTokens = await import('../../src/google/client.js');
         delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
         (loadConfig as any).mockResolvedValue({
@@ -243,7 +231,7 @@ describe('AdSenseClient', () => {
         });
         (saveTokens.loadTokensForAccount as any).mockResolvedValue(null);
 
-        await expect(getAdsenseClient()).rejects.toThrow(/Authentication configuration not found/);
+        await expect(getAdsenseClient()).rejects.toThrow(/requires user-authorized OAuth 2.0/);
     });
 
     it('throws when account has no Publisher ID', async () => {
@@ -264,45 +252,79 @@ describe('AdSenseClient', () => {
     });
 
     it('wraps API calls with the bound account path (listAccounts/payments/alerts)', async () => {
-        const { AdSenseClient } = await import('../../src/adsense/client.js');
-        const stub = stubAdsenseApi();
-        mockListAccounts.mockResolvedValue({ data: { accounts: [{ name: 'accounts/pub-9' }] } });
-        mockListPayments.mockResolvedValue({ data: { payments: [{ name: 'p1', amount: '$5' }] } });
-        mockListAlerts.mockResolvedValue({ data: { alerts: [{ name: 'a1' }] } });
-        // No tokens -> service-account path
-        delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        const saveTokens = await import('../../src/google/client.js');
         (loadConfig as any).mockResolvedValue({
             accounts: {
                 'adsense_x': {
                     id: 'adsense_x',
                     engine: 'adsense',
                     alias: 'X',
-                    adsenseAccountId: 'accounts/pub-9',
-                    serviceAccountPath: 'key.json'
+                    adsenseAccountId: 'accounts/pub-9'
                 }
             }
         });
+        (saveTokens.loadTokensForAccount as any).mockResolvedValue({
+            refresh_token: 'r',
+            expiry_date: Date.now() + 3_600_000
+        });
+        mockListAccounts.mockResolvedValue({ data: { accounts: [{ name: 'accounts/pub-9' }] } });
+        mockListPayments.mockResolvedValue({ data: { payments: [{ name: 'p1', amount: '$5' }] } });
+        mockListAlerts.mockResolvedValue({ data: { alerts: [{ name: 'a1' }] } });
 
         const client = await getAdsenseClient('adsense_x');
 
-        expect(client.listAccounts()).resolves.toEqual([{ name: 'accounts/pub-9' }]);
-        expect(client.listPayments()).resolves.toEqual([{ name: 'p1', amount: '$5' }]);
-        expect(client.listAlerts()).resolves.toEqual([{ name: 'a1' }]);
+        await Promise.all([
+            expect(client.listAccounts()).resolves.toEqual([{ name: 'accounts/pub-9' }]),
+            expect(client.listPayments()).resolves.toEqual([{ name: 'p1', amount: '$5' }]),
+            expect(client.listAlerts()).resolves.toEqual([{ name: 'a1' }]),
+        ]);
+    });
+
+    it('follows nextPageToken across listAccounts pages', async () => {
+        const saveTokens = await import('../../src/google/client.js');
+        (loadConfig as any).mockResolvedValue({
+            accounts: {
+                'adsense_p': {
+                    id: 'adsense_p',
+                    engine: 'adsense',
+                    alias: 'Paged',
+                    adsenseAccountId: 'accounts/pub-p'
+                }
+            }
+        });
+        (saveTokens.loadTokensForAccount as any).mockResolvedValue({
+            refresh_token: 'r',
+            expiry_date: Date.now() + 3_600_000
+        });
+        mockListAccounts
+            .mockResolvedValueOnce({ data: { accounts: [{ name: 'accounts/pub-1' }], nextPageToken: 'PAGE2' } })
+            .mockResolvedValueOnce({ data: { accounts: [{ name: 'accounts/pub-2' }] } });
+
+        const client = await getAdsenseClient('adsense_p');
+        const accounts = await client.listAccounts();
+
+        expect(accounts).toEqual([{ name: 'accounts/pub-1' }, { name: 'accounts/pub-2' }]);
+        expect(mockListAccounts).toHaveBeenCalledTimes(2);
+        expect(mockListAccounts).toHaveBeenLastCalledWith(expect.objectContaining({ pageToken: 'PAGE2' }));
     });
 
     it('evicts oldest cached client beyond MAX_CLIENT_CACHE_SIZE', async () => {
+        const saveTokens = await import('../../src/google/client.js');
         const accounts: Record<string, any> = {};
         for (let i = 0; i < 11; i++) {
             accounts[`adsense_${i}`] = {
                 id: `adsense_${i}`,
                 engine: 'adsense',
                 alias: `AdSense ${i}`,
-                adsenseAccountId: `accounts/pub-${i}`,
-                serviceAccountPath: 'key.json'
+                adsenseAccountId: `accounts/pub-${i}`
             };
         }
         (loadConfig as any).mockResolvedValue({ accounts });
         delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        (saveTokens.loadTokensForAccount as any).mockResolvedValue({
+            refresh_token: 'r',
+            expiry_date: Date.now() + 3_600_000
+        });
 
         // Fill cache with 11 distinct accounts
         for (let i = 0; i < 11; i++) {
