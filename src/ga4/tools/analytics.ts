@@ -307,10 +307,7 @@ export async function getContentPerformance(
     accountId?: string,
     offset?: number
 ) {
-    // Try to query content group first?
-    // Not sure if contentGroup is standard. 'contentGroup' is a standard dimension.
-    // If not used, it might return (not set).
-
+    // contentGroup is a standard GA4 dimension; properties not using it report "(not set)".
     const response = await queryAnalytics({
         propertyId,
         accountId,
@@ -355,7 +352,7 @@ export async function getEcommerce(
         orderBys: [{ metric: { metricName: 'itemRevenue' }, desc: true }]
     });
 
-    // Check if we have data. If total revenue is 0 across all rows, maybe return warning.
+    // No revenue data: return a warning instead of empty rows
     const rows = formatRows(response);
     if (rows.length === 0 || (rows.length > 0 && rows.every((r: Record<string, number>) => r.itemRevenue === 0 && r.itemsPurchased === 0))) {
         return {

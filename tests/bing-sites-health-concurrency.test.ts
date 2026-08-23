@@ -42,8 +42,8 @@ describe('Bing Sites Health Concurrency', () => {
         await new Promise(resolve => setTimeout(resolve, 50));
         concurrentRequests--;
         return {
-            period1: { clicks: 100, impressions: 1000, ctr: 0.1, position: 1 },
-            period2: { clicks: 100, impressions: 1000, ctr: 0.1, position: 1 },
+            period1: { clicks: 100, impressions: 1000, ctr: 0.1, position: 1, startDate: '2024-01-01', endDate: '2024-01-07' },
+            period2: { clicks: 100, impressions: 1000, ctr: 0.1, position: 1, startDate: '2023-12-25', endDate: '2023-12-31' },
             changes: {
                 clicks: 0, clicksPercent: 0,
                 impressions: 0, impressionsPercent: 0,

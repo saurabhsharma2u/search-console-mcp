@@ -507,7 +507,7 @@ export async function findLostQueries(
     const currentMap = new Set(current.map(r => `${r.keys?.[0]}|${r.keys?.[1]}`));
 
     // Find queries present in previous but NOT in current (or very low traffic)
-    // Actually "lost" means clicks went to near zero
+    // "lost" includes queries whose clicks dropped to near zero
     const currentClicksMap = new Map(current.map(r => [`${r.keys?.[0]}|${r.keys?.[1]}`, r.clicks ?? 0]));
 
     const lostQueries: LostQuery[] = [];
@@ -529,7 +529,7 @@ export async function findLostQueries(
                 previousImpressions: prev.impressions ?? 0,
                 previousPosition: prev.position ?? 0,
                 currentClicks: currClicks,
-                currentImpressions: 0, // We don't have this easily if it's missing from current, assume 0 or low
+                currentImpressions: 0, // missing from the current period; treated as 0
                 currentPosition: 0,
                 lostClicks: prevClicks - currClicks
             });

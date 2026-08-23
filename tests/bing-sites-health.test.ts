@@ -29,7 +29,7 @@ describe('Bing Sites Health', () => {
     });
 
     const mockSiteUrl = 'https://example.com';
-    const mockPerf = { clicks: 100, impressions: 1000, ctr: 0.1, position: 1 };
+    const mockPerf = { clicks: 100, impressions: 1000, ctr: 0.1, position: 1, startDate: '2024-01-01', endDate: '2024-01-07' };
     const mockChanges = {
         clicks: 0, clicksPercent: 0,
         impressions: 0, impressionsPercent: 0,

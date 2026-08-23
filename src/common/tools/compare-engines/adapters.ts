@@ -72,8 +72,7 @@ export async function fetchBingData(options: CompareEnginesOptions): Promise<Bin
   }>();
 
   for (const row of filtered) {
-    // Bing API returns 'Query' field for both getQueryStats and getPageStats (where it contains the URL)
-    // Actually getPageStats interface says: Query: string; // The API returns URL in the 'Query' field
+    // Bing's API returns the URL in the 'Query' field for page stats
     const key = row.Query;
 
     if (!aggregated.has(key)) {
@@ -90,12 +89,8 @@ export async function fetchBingData(options: CompareEnginesOptions): Promise<Bin
   // 4. Convert back to array
   const result: (BingQueryStats | BingPageStats)[] = Array.from(aggregated.values()).map(entry => {
     const avgPos = entry.impressions > 0 ? entry.weightedPos / entry.impressions : 0;
-    const ctr = entry.impressions > 0 ? (entry.clicks / entry.impressions) : 0; // Bing API CTR is usually a ratio 0-1 or percentage?
-    // Checking BingClient types, CTR is number. Usually Bing returns 0-100 or 0-1?
-    // GSC returns 0-1.
-    // I should check existing Bing analytics code.
-    // src/bing/tools/analytics.ts: ctr: impressions > 0 ? clicks / impressions : 0
-    // So we calculate it ourselves.
+    // CTR as ratio 0-1, consistent with GSC (Bing does not return a normalized CTR)
+    const ctr = entry.impressions > 0 ? (entry.clicks / entry.impressions) : 0;
 
     return {
       Query: entry.key,

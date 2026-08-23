@@ -16,6 +16,22 @@ To run the full suite:
 npm test
 ```
 
+### End-to-End Tests
+
+The `tests/e2e/` directory contains true end-to-end tests that spawn the **built server binary** (`dist/index.js`) as a child process and speak the MCP protocol to it with a real client — exactly like Claude or Cursor do:
+
+- `stdio.e2e.test.ts` — initialize handshake, `tools/list`, prompts/resources listing, tool calls (`get_started`, unconfigured error paths), schema-validation errors, unknown tools.
+- `sse.e2e.test.ts` — boots the server in HTTP/SSE mode (`serve --transport=sse`) and checks `/health` plus session rejection.
+
+The spawned servers run fully isolated (throwaway `HOME`, no `.env`, no credentials), so they are deterministic and never touch real accounts.
+
+```bash
+npm run test:e2e   # builds first, then runs the e2e suite
+npm run test:all   # unit + e2e
+```
+
+CI runs both suites on every pull request.
+
 ### Writing a Tool Test
 When testing an SEO tool, focus on verifying the math and the filtering logic.
 

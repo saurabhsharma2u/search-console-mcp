@@ -61,8 +61,7 @@ export async function analyzeDropAttribution(
 
     const dropDate = mostRecentDrop.date;
 
-    // Bing API limitation: No device breakdown available via simple API calls.
-    // We return 0 for device impacts.
+    // Bing API provides no device breakdown via simple calls, so impacts are reported as 0
     const impacts: any = { mobile: 0, desktop: 0, tablet: 0 };
 
     // Check for algorithm updates within 2 days of the drop

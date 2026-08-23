@@ -24,9 +24,8 @@ function generateCacheKey(options: AnalyticsOptions): string {
     );
   }
 
-  // We need a stable JSON string for the cache key.
-  // Instead of the broken JSON.stringify(clone, keys) which wipes nested objects,
-  // we manually sort the top-level keys.
+  // Stable cache key: JSON.stringify with a key replacer drops nested objects,
+  // so top-level keys are sorted manually instead.
   const sorted: any = {};
   Object.keys(clone).sort().forEach(key => {
     sorted[key] = (clone as any)[key];
@@ -204,9 +203,8 @@ export async function queryAnalytics(options: AnalyticsOptions): Promise<searchc
       }
 
       if (options.filters && options.filters.length > 0) {
-        // We use separate dimensionFilterGroups for each filter to ensure they are joined by AND.
-        // GSC API joins multiple filters within the same group by OR if they share the same dimension.
-        // By putting them in separate groups, we guarantee strict AND behavior for all filters.
+        // Separate dimensionFilterGroups per filter so they are joined by AND
+        // (multiple filters on the same dimension inside one group would join by OR)
         requestBody.dimensionFilterGroups = options.filters.map(f => ({
           filters: [{
             dimension: f.dimension,

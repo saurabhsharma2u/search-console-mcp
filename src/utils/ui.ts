@@ -19,9 +19,7 @@ export function printBoxHeader(subLabel: string, color = colors.blue) {
     const totalWidth = 62;
     const content = `${title} | ${subLabel}`;
 
-    // Calculate padding for centering
-    // Each emoji is roughly 2 chars wide in some terminals, but let's assume standard string length for simplicity 
-    // and adjust manually as we did before for perfect alignment.
+    // Rough centering; assumes standard string length (emoji width varies by terminal)
 
     const leftPadStr = " ".repeat(12);
     const rightPadStr = " ".repeat(12);

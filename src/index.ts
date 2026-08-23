@@ -409,19 +409,19 @@ registerTool(
   }
 );
 
-// Internal silent fallback router interceptor for CallTool requests.
-//
-// Registered tools take priority. Ten legacy keys share a name with a modern
-// tool, and the legacy shims accept a different argument shape, so checking the
-// fallback map first left those tools permanently calling the wrong handler
-// with mangled arguments. Legacy names are aliases only for tools that are not
-// registered under the current schema.
+// Legacy names are aliases only for tools not registered under the current
+// schema; non-legacy traffic goes to the SDK dispatcher for validation.
+const sdkCallToolHandler =
+  (server.server as any)._requestHandlers?.get('tools/call') ?? null;
 (server.server as any).setRequestHandler(CallToolRequestSchema, async (request: any, extra: any) => {
   const toolName = request.params.name;
   const registeredTool = (server as any)._registeredTools[toolName];
   if (shouldUseLegacyFallback(toolName, Boolean(registeredTool))) {
     const legacyResult = await executeLegacyFallback(toolName, request.params.arguments);
     if (legacyResult) return legacyResult;
+  }
+  if (sdkCallToolHandler) {
+    return await sdkCallToolHandler(request, extra);
   }
   if (!registeredTool) {
     throw new Error(`Tool ${toolName} not found`);

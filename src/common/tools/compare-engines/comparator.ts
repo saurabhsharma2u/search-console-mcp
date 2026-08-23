@@ -34,8 +34,7 @@ export function compareRows(googleRows: NormalizedRow[], bingRows: NormalizedRow
     const totalClicks = google.clicks + bing.clicks;
     const googleClickShare = totalClicks > 0 ? google.clicks / totalClicks : 0;
 
-    // Position delta: google - bing
-    // Note: 0 usually means unranked. We use raw values here.
+    // Position delta: google - bing (0 usually means unranked; compared as-is)
     const deltas: Deltas = {
       position_delta: google.position - bing.position,
       ctr_delta: google.ctr - bing.ctr,

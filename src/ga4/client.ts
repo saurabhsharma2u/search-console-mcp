@@ -64,12 +64,11 @@ export async function getGA4Client(propertyId?: string, accountId?: string): Pro
             // Try to find by propertyId property
             account = accounts.find(a => a.ga4PropertyId === propertyId);
 
-            // If not found, try generic resolution (maybe property ID is in websites list)
             if (!account) {
                 try {
                     account = await resolveAccount(propertyId, 'ga4');
                 } catch (e) {
-                    // Ignore resolution error for now
+                    // Ignore
                 }
             }
         }
@@ -91,9 +90,6 @@ export async function getGA4Client(propertyId?: string, accountId?: string): Pro
         }
     }
 
-    // Determine Property ID to use
-    // If account has a specific property ID, use it.
-    // If not, and propertyId argument was passed, use that (assuming account has access).
     const targetPropertyId = propertyId || account.ga4PropertyId;
 
     if (!targetPropertyId) {

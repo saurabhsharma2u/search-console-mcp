@@ -16,7 +16,9 @@
   "scripts": {
     "build": "tsc",
     "setup": "pnpm build && node dist/setup.js",
-    "test": "vitest run",
+    "test": "vitest run --exclude 'tests/e2e/**'",
+    "test:e2e": "pnpm build && vitest run tests/e2e",
+    "test:all": "pnpm test && pnpm test:e2e",
     "inspector": "npx @modelcontextprotocol/inspector@latest node dist/index.js",
     "test:live:google": "tsx tests/live-google-test.ts",
     "test:live:bing": "tsx tests/live-bing-test.ts",

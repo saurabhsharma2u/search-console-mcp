@@ -37,8 +37,11 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+      - name: Run e2e tests
+        run: pnpm test:e2e
+
       - name: Run tests with coverage
-        run: pnpm exec vitest run --coverage
+        run: pnpm exec vitest run --coverage --exclude 'tests/e2e/**'
         if: matrix.node-version == '24.x'
 
   lint:
