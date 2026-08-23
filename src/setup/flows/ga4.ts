@@ -138,8 +138,26 @@ async function setupGA4ServiceAccount() {
         validate: validateAlias
     }) || defaultAlias;
 
+    // Re-configuring an already-connected property must update it,
+    // not create a duplicate entry
+    const existing = Object.values(config.accounts).find(
+        a => a.engine === 'ga4' && a.ga4PropertyId === propertyId
+    );
+
+    if (existing) {
+        const replace = await prompts.confirm(
+            `Property ${propertyId} is already connected as "${existing.alias}" (${existing.id}). Update it?`,
+            true
+        );
+        if (!replace) {
+            printInfo('Setup cancelled — existing configuration left unchanged.');
+            return;
+        }
+    }
+
     const account: AccountConfig = {
-        id: `ga4_${Date.now()}`,
+        ...(existing || {}),
+        id: existing ? existing.id : `ga4_${Date.now()}`,
         engine: 'ga4',
         alias,
         ga4PropertyId: propertyId,
@@ -207,8 +225,27 @@ async function setupGA4OAuth() {
             validate: validateAlias
         }) || defaultAlias;
 
+        // Re-auth of an already-connected property must update it,
+        // not create a duplicate entry
+        const config = await loadConfig();
+        const existing = Object.values(config.accounts).find(
+            a => a.engine === 'ga4' && a.ga4PropertyId === propertyId
+        );
+
+        if (existing) {
+            const replace = await prompts.confirm(
+                `Property ${propertyId} is already connected as "${existing.alias}" (${existing.id}). Re-authorize and update it?`,
+                true
+            );
+            if (!replace) {
+                printInfo('Setup cancelled — existing configuration left unchanged.');
+                return;
+            }
+        }
+
         const account: AccountConfig = {
-            id: `ga4_${Date.now()}`,
+            ...(existing || {}),
+            id: existing ? existing.id : `ga4_${Date.now()}`,
             engine: 'ga4',
             alias,
             ga4PropertyId: propertyId,

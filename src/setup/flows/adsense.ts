@@ -84,8 +84,27 @@ async function setupAdSense() {
             validate: validateAlias
         }) || defaultAlias;
 
+        // Re-auth of an already-configured publisher account must update it,
+        // not create a duplicate entry
+        const config = await loadConfig();
+        const existing = Object.values(config.accounts).find(
+            a => a.engine === 'adsense' && a.adsenseAccountId === publisherId
+        );
+
+        if (existing) {
+            const replace = await prompts.confirm(
+                `Publisher ${publisherId} is already connected as "${existing.alias}" (${existing.id}). Re-authorize and update it?`,
+                true
+            );
+            if (!replace) {
+                printInfo('Setup cancelled — existing configuration left unchanged.');
+                return;
+            }
+        }
+
         const account: AccountConfig = {
-            id: `adsense_${Date.now()}`,
+            ...(existing || {}),
+            id: existing ? existing.id : `adsense_${Date.now()}`,
             engine: 'adsense',
             alias,
             adsenseAccountId: publisherId

@@ -1,4 +1,4 @@
-import { AccountConfig, updateAccount } from '../../common/auth/config.js';
+import { AccountConfig, AppConfig, loadConfig, updateAccount } from '../../common/auth/config.js';
 import { getBingClient, BingClient } from '../../bing/client.js';
 import { prompts, withSpinner } from '../../utils/prompts.js';
 import { validateAlias } from '../../utils/validation.js';
@@ -42,8 +42,27 @@ async function setupBing() {
         validate: validateAlias
     }) || defaultAlias;
 
+    // Re-entering an already-configured API key must update the account,
+    // not create a duplicate entry
+    const config = await loadConfig();
+    const existing = Object.values(config.accounts).find(
+        a => a.engine === 'bing' && a.apiKey === apiKey
+    );
+
+    if (existing) {
+        const replace = await prompts.confirm(
+            `This API key is already connected as "${existing.alias}" (${existing.id}). Update it?`,
+            true
+        );
+        if (!replace) {
+            printInfo('Setup cancelled — existing configuration left unchanged.');
+            return;
+        }
+    }
+
     const account: AccountConfig = {
-        id: `bing_${Date.now()}`,
+        ...(existing || {}),
+        id: existing ? existing.id : `bing_${Date.now()}`,
         engine: 'bing',
         alias,
         apiKey,
