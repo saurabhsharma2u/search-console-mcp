@@ -133,7 +133,33 @@ Just like Search Console, you must add your Service Account email to your GA4 pr
 
 ---
 
-## 5. PageSpeed Insights (Optional API Key)
+## 5. Google AdSense (OAuth)
+
+The AdSense Management API supports **user-authorized OAuth 2.0 only** — service accounts are not accepted.
+
+### Step 1: Automated Setup
+
+Run the setup wizard with the AdSense flag:
+
+```bash
+npx search-console-mcp setup --engine=adsense
+```
+
+### Step 2: Consent & Account Selection
+
+1.  Approve the read-only `adsense.readonly` scope in the browser window.
+2.  If your Google account has multiple publisher accounts, select the one to connect.
+3.  Setup runs a live validation query before saving — you'll see **Connection successful!** when done.
+
+<Info>
+  Enabling AdSense requires this separate consent step; your existing GSC, Bing, and GA4 configuration is never touched until you opt in.
+</Info>
+
+Full parameter reference: [Google AdSense Tools](/tools/adsense).
+
+---
+
+## 6. PageSpeed Insights (Optional API Key)
 
 PageSpeed tools (`pagespeed_analyze`, `pagespeed_core_web_vitals`, `analytics_pagespeed_correlation`) work **without any configuration** using Google's free tier.
 

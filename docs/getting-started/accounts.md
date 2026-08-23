@@ -11,7 +11,7 @@ See all connected accounts at a glance:
 npx search-console-mcp accounts list
 ```
 
-This shows each account's name, engine (Google or Bing), and which sites it has access to.
+This shows each account's name, engine (Google, Bing, GA4, or AdSense), and which sites it has access to.
 
 ---
 

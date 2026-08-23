@@ -12,7 +12,7 @@ Unlike simple API wrappers, this project focuses on providing **SEO Intelligence
 *   **Fluent Domain Architecture:** Streamlined into 7 core domain entry points (`sites_list`, `sitemaps_list`, `analytics_query`, `inspection_inspect`, `indexing_submit`, `seo_audit`, `site_health_check`).
 *   **Parallel Multi-Engine Execution (`engine: "all"`):** Query Google, Bing, and GA4 simultaneously with **50%+ lower latency**.
 *   **100% Backward Compatibility:** All ~96 legacy tool names continue working seamlessly via our Fallback Router. [Read Backward Compatibility Guide →](/concepts/backward-compatibility)
-*   **Multi-Platform Support:** Manage sites and behavior data for Google, Bing, and GA4 in one place.
+*   **Multi-Platform Support:** Manage sites, behavior data, and ad revenue for Google, Bing, GA4, and AdSense in one place.
 *   **Advanced Analytics:** Multi-dimensional analysis, rolling averages, period-over-period comparisons, and drop attribution.
 *   **SEO Insights:** Deterministic detection of cannibalization, Striking Distance keywords, and "Low-Hanging Fruit."
 *   **Site Health Check:** Automated diagnostics across all your properties — performance trends, sitemap status, and anomaly detection in one call.

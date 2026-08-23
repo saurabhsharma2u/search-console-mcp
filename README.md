@@ -20,12 +20,21 @@ Stop exporting CSVs. Start asking your AI agent questions about your site's traf
 
 ---
 
-## ⚡ What's New
+## ⚡ What's New in v2.1.0
 
 * 💰 **Google AdSense Integration**: Earnings reports, payments and account alerts via `setup --engine=adsense`. Enabling AdSense requires you to approve a separate `adsense.readonly` OAuth scope; your existing GSC, Bing, and GA4 configuration remains unchanged until you opt in.
+* 🔐 **OAuth-only AdSense auth**: The AdSense Management API supports user OAuth only — setup now validates access live and rejects unsupported service-account configs with actionable guidance. Multi-account users get explicit publisher-account selection with full pagination (>100 accounts).
+* 📊 **`adsense_report` upgrades**: Custom `startDate`/`endDate` now override preset `dateRange`s, plus a new `orderBy` parameter (`-ESTIMATED_EARNINGS`) for sorted revenue reports.
+* 🧪 **End-to-end MCP test suite**: The built server binary is now tested over stdio and SSE exactly like an MCP host would drive it — handshake, tool schemas, error envelopes, and multi-account resource behavior (11 e2e tests wired into CI).
+
+<details>
+<summary><strong>What's New in v2.0.x</strong></summary>
+
 * 📦 **MCPB One-Click Bundle Support (`.mcpb`)**: Drag and drop bundle installation for Claude Desktop.
 * ⚡ **Parallel Fetch Engine (`engine: "all"`)**: Multi-engine queries fetch Google, Bing, and GA4 concurrently with **50%+ lower latency**.
 * 🔄 **100% Backward Compatibility**: All ~96 legacy tool names continue to work seamlessly via our fallback router. [Read Backward Compatibility Guide →](https://searchconsolemcp.saurabh.app/concepts/backward-compatibility)
+
+</details>
 
 ---
 
