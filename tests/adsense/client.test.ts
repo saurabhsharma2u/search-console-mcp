@@ -175,48 +175,8 @@ describe('AdSenseClient', () => {
         expect(client.getPublisherId()).toBe('accounts/pub-123');
     });
 
-    it('rejects service-account auth: the AdSense API only supports user OAuth', async () => {
-        const saveTokens = await import('../../src/google/client.js');
-        (loadConfig as any).mockResolvedValue({
-            accounts: {
-                'adsense_1': {
-                    id: 'adsense_1',
-                    engine: 'adsense',
-                    alias: 'My AdSense',
-                    adsenseAccountId: 'accounts/pub-123',
-                    serviceAccountPath: '/path/to/key.json'
-                }
-            }
-        });
-        (saveTokens.loadTokensForAccount as any).mockResolvedValue(null);
-        delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
 
-        await expect(getAdsenseClient()).rejects.toThrow(/does not support service accounts.*setup --engine=adsense/s);
-    });
-
-    it('ignores GOOGLE_APPLICATION_CREDENTIALS env and directs to OAuth setup', async () => {
-        const saveTokens = await import('../../src/google/client.js');
-        process.env.GOOGLE_APPLICATION_CREDENTIALS = '/path/to/env-key.json';
-        (loadConfig as any).mockResolvedValue({
-            accounts: {
-                'adsense_1': {
-                    id: 'adsense_1',
-                    engine: 'adsense',
-                    alias: 'My AdSense',
-                    adsenseAccountId: 'accounts/pub-123'
-                }
-            }
-        });
-        (saveTokens.loadTokensForAccount as any).mockResolvedValue(null);
-
-        try {
-            await expect(getAdsenseClient()).rejects.toThrow(/OAuth/);
-        } finally {
-            delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
-        }
-    });
-
-    it('throws when no OAuth tokens are available', async () => {
+    it('throws when no auth configuration is available', async () => {
         const saveTokens = await import('../../src/google/client.js');
         delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
         (loadConfig as any).mockResolvedValue({
@@ -231,7 +191,48 @@ describe('AdSenseClient', () => {
         });
         (saveTokens.loadTokensForAccount as any).mockResolvedValue(null);
 
-        await expect(getAdsenseClient()).rejects.toThrow(/requires user-authorized OAuth 2.0/);
+        await expect(getAdsenseClient()).rejects.toThrow(/requires user-authorized OAuth 2.0 or a configured Service Account/);
+    });
+
+    it('initializes client with serviceAccountPath', async () => {
+        const saveTokens = await import('../../src/google/client.js');
+        delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        (loadConfig as any).mockResolvedValue({
+            accounts: {
+                'adsense_sa': {
+                    id: 'adsense_sa',
+                    engine: 'adsense',
+                    alias: 'SA AdSense',
+                    adsenseAccountId: 'accounts/pub-sa',
+                    serviceAccountPath: '/path/to/sa.json'
+                }
+            }
+        });
+        (saveTokens.loadTokensForAccount as any).mockResolvedValue(null);
+
+        const client = await getAdsenseClient();
+        expect(client.getPublisherId()).toBe('accounts/pub-sa');
+        expect(mockAdsenseFactory).toHaveBeenCalledWith(expect.objectContaining({ version: 'v2' }));
+    });
+
+    it('initializes client with GOOGLE_APPLICATION_CREDENTIALS fallback', async () => {
+        const saveTokens = await import('../../src/google/client.js');
+        process.env.GOOGLE_APPLICATION_CREDENTIALS = '/path/to/env/sa.json';
+        (loadConfig as any).mockResolvedValue({
+            accounts: {
+                'adsense_env': {
+                    id: 'adsense_env',
+                    engine: 'adsense',
+                    alias: 'Env AdSense',
+                    adsenseAccountId: 'accounts/pub-env'
+                }
+            }
+        });
+        (saveTokens.loadTokensForAccount as any).mockResolvedValue(null);
+
+        const client = await getAdsenseClient();
+        expect(client.getPublisherId()).toBe('accounts/pub-env');
+        expect(mockAdsenseFactory).toHaveBeenCalledWith(expect.objectContaining({ version: 'v2' }));
     });
 
     it('throws when account has no Publisher ID', async () => {

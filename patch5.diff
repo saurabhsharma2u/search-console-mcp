@@ -1,0 +1,100 @@
+<<<<<<< SEARCH
+        it('runs OAuth flow and saves a single publisher account automatically', async () => {
+            await configureAdSense(emptyStatus);
+
+            expect(googleClient.startLocalFlow).toHaveBeenCalled();
+            expect(mockAdsenseApi.accounts.reports.generate).toHaveBeenCalledWith(
+                expect.objectContaining({ account: 'accounts/pub-123' })
+            );
+            expect(config.updateAccount).toHaveBeenCalledWith(expect.objectContaining({
+                engine: 'adsense',
+                adsenseAccountId: 'accounts/pub-123',
+                alias: 'user@test.com-adsense',
+            }));
+            expect(googleClient.saveTokensForAccount).toHaveBeenCalled();
+            expect(shared.supportProject).toHaveBeenCalledWith('AdSense');
+        });
+
+        it('prompts selection when multiple publisher accounts exist', async () => {
+            mockAdsenseApi.accounts.list.mockResolvedValue({
+                data: {
+                    accounts: [
+                        { name: 'accounts/pub-1', displayName: 'One' },
+                        { name: 'accounts/pub-2', displayName: 'Two' },
+                    ],
+                },
+            } as any);
+            driver.selectResponses = [{ name: 'accounts/pub-2', displayName: 'Two' }];
+
+            await configureAdSense(emptyStatus);
+
+            expect(config.updateAccount).toHaveBeenCalledWith(expect.objectContaining({
+                adsenseAccountId: 'accounts/pub-2',
+            }));
+        });
+
+        it('errors when the account has no publisher accounts', async () => {
+            mockAdsenseApi.accounts.list.mockResolvedValue({ data: { accounts: [] } } as any);
+            await configureAdSense(emptyStatus);
+            expect(driver.loggedError).toMatch(/No AdSense publisher accounts found/);
+            expect(config.updateAccount).not.toHaveBeenCalled();
+        });
+
+        it('does not save when verification report fails', async () => {
+            mockAdsenseApi.accounts.reports.generate.mockRejectedValue(new Error('Permission denied'));
+            await configureAdSense(emptyStatus);
+            expect(driver.loggedError).toMatch(/Failed: Permission denied/);
+            expect(config.updateAccount).not.toHaveBeenCalled();
+        });
+=======
+        it('runs OAuth flow and saves a single publisher account automatically', async () => {
+            driver.selectResponses = ['oauth'];
+            await configureAdSense(emptyStatus);
+
+            expect(googleClient.startLocalFlow).toHaveBeenCalled();
+            expect(mockAdsenseApi.accounts.reports.generate).toHaveBeenCalledWith(
+                expect.objectContaining({ account: 'accounts/pub-123' })
+            );
+            expect(config.updateAccount).toHaveBeenCalledWith(expect.objectContaining({
+                engine: 'adsense',
+                adsenseAccountId: 'accounts/pub-123',
+                alias: 'user@test.com-adsense',
+            }));
+            expect(googleClient.saveTokensForAccount).toHaveBeenCalled();
+            expect(shared.supportProject).toHaveBeenCalledWith('AdSense');
+        });
+
+        it('prompts selection when multiple publisher accounts exist', async () => {
+            driver.selectResponses = ['oauth', { name: 'accounts/pub-2', displayName: 'Two' }];
+            mockAdsenseApi.accounts.list.mockResolvedValue({
+                data: {
+                    accounts: [
+                        { name: 'accounts/pub-1', displayName: 'One' },
+                        { name: 'accounts/pub-2', displayName: 'Two' },
+                    ],
+                },
+            } as any);
+
+            await configureAdSense(emptyStatus);
+
+            expect(config.updateAccount).toHaveBeenCalledWith(expect.objectContaining({
+                adsenseAccountId: 'accounts/pub-2',
+            }));
+        });
+
+        it('errors when the account has no publisher accounts', async () => {
+            driver.selectResponses = ['oauth'];
+            mockAdsenseApi.accounts.list.mockResolvedValue({ data: { accounts: [] } } as any);
+            await configureAdSense(emptyStatus);
+            expect(driver.loggedError).toMatch(/No AdSense publisher accounts found/);
+            expect(config.updateAccount).not.toHaveBeenCalled();
+        });
+
+        it('does not save when verification report fails', async () => {
+            driver.selectResponses = ['oauth'];
+            mockAdsenseApi.accounts.reports.generate.mockRejectedValue(new Error('Permission denied'));
+            await configureAdSense(emptyStatus);
+            expect(driver.loggedError).toMatch(/Failed: Permission denied/);
+            expect(config.updateAccount).not.toHaveBeenCalled();
+        });
+>>>>>>> REPLACE

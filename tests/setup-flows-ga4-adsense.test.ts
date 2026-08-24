@@ -202,6 +202,7 @@ describe('setup flows: ga4 + adsense', () => {
 
     describe('configureAdSense', () => {
         it('runs OAuth flow and saves a single publisher account automatically', async () => {
+            driver.selectResponses = ['oauth'];
             await configureAdSense(emptyStatus);
 
             expect(googleClient.startLocalFlow).toHaveBeenCalled();
@@ -218,6 +219,7 @@ describe('setup flows: ga4 + adsense', () => {
         });
 
         it('prompts selection when multiple publisher accounts exist', async () => {
+            driver.selectResponses = ['oauth', { name: 'accounts/pub-2', displayName: 'Two' }];
             mockAdsenseApi.accounts.list.mockResolvedValue({
                 data: {
                     accounts: [
@@ -226,7 +228,6 @@ describe('setup flows: ga4 + adsense', () => {
                     ],
                 },
             } as any);
-            driver.selectResponses = [{ name: 'accounts/pub-2', displayName: 'Two' }];
 
             await configureAdSense(emptyStatus);
 
@@ -236,6 +237,7 @@ describe('setup flows: ga4 + adsense', () => {
         });
 
         it('errors when the account has no publisher accounts', async () => {
+            driver.selectResponses = ['oauth'];
             mockAdsenseApi.accounts.list.mockResolvedValue({ data: { accounts: [] } } as any);
 
             await configureAdSense(emptyStatus);
@@ -245,6 +247,7 @@ describe('setup flows: ga4 + adsense', () => {
         });
 
         it('does not save when verification report fails', async () => {
+            driver.selectResponses = ['oauth'];
             mockAdsenseApi.accounts.reports.generate.mockRejectedValue(new Error('forbidden'));
 
             await configureAdSense(emptyStatus);

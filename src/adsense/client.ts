@@ -130,9 +130,35 @@ export async function getAdsenseClient(accountId?: string): Promise<AdSenseClien
         }
     }
 
+    // 3. Support Service Account Path
+    const SCOPES = ['https://www.googleapis.com/auth/adsense.readonly'];
+    if (account.serviceAccountPath) {
+        const { assertServiceAccountKeyReadable } = await import('../common/auth/config.js');
+        assertServiceAccountKeyReadable(account);
+        const auth = new google.auth.GoogleAuth({
+            keyFilename: account.serviceAccountPath,
+            scopes: SCOPES
+        });
+        client = google.adsense({ version: ADSENSE_VERSION, auth });
+        const adSenseClient = new AdSenseClient(client, publisherId);
+        cacheClient(cacheKey, adSenseClient);
+        return adSenseClient;
+    }
+
+    // 4. Fallback to Environment Variables (Google Application Credentials)
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        const auth = new google.auth.GoogleAuth({
+            scopes: SCOPES
+        });
+        client = google.adsense({ version: ADSENSE_VERSION, auth });
+        const adSenseClient = new AdSenseClient(client, publisherId);
+        cacheClient(cacheKey, adSenseClient);
+        return adSenseClient;
+    }
+
     throw new Error(
-        `AdSense requires user-authorized OAuth 2.0 (the AdSense Management API does not support service accounts). ` +
-        `Re-authorize account "${account.alias}" with: search-console-mcp setup --engine=adsense`
+        `Authentication configuration not found for account ${account.alias}. ` +
+        `AdSense requires user-authorized OAuth 2.0 or a configured Service Account.`
     );
 }
 

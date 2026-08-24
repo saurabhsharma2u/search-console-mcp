@@ -1,0 +1,43 @@
+<<<<<<< SEARCH
+    it('rejects service-account auth: the AdSense API only supports user OAuth', async () => {
+        const saveTokens = await import('../../src/google/client.js');
+        (loadConfig as any).mockResolvedValue({
+            accounts: {
+                'adsense_1': {
+                    id: 'adsense_1',
+                    engine: 'adsense',
+                    alias: 'My AdSense',
+                    adsenseAccountId: 'accounts/pub-123',
+                    serviceAccountPath: '/path/to/key.json'
+                }
+            }
+        });
+        (saveTokens.loadTokensForAccount as any).mockResolvedValue(null);
+        delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+        await expect(getAdsenseClient()).rejects.toThrow(/does not support service accounts.*setup --engine=adsense/s);
+    });
+
+    it('ignores GOOGLE_APPLICATION_CREDENTIALS env and directs to OAuth setup', async () => {
+        const saveTokens = await import('../../src/google/client.js');
+        process.env.GOOGLE_APPLICATION_CREDENTIALS = '/path/to/env-key.json';
+        (loadConfig as any).mockResolvedValue({
+            accounts: {
+                'adsense_1': {
+                    id: 'adsense_1',
+                    engine: 'adsense',
+                    alias: 'My AdSense',
+                    adsenseAccountId: 'accounts/pub-123'
+                }
+            }
+        });
+        (saveTokens.loadTokensForAccount as any).mockResolvedValue(null);
+
+        try {
+            await expect(getAdsenseClient()).rejects.toThrow(/OAuth/);
+        } finally {
+            delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+        }
+    });
+=======
+>>>>>>> REPLACE

@@ -1,0 +1,107 @@
+<<<<<<< SEARCH
+    // 2. Load Tokens (OAuth)
+    const tokens = await loadTokensForAccount(account);
+
+    if (tokens) {
+        try {
+            const oauth2Client = new google.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID || DEFAULT_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET || DEFAULT_CLIENT_SECRET
+            );
+            oauth2Client.setCredentials(tokens);
+
+            // Check for expiry (refresh if needed)
+            if (tokens.expiry_date && tokens.expiry_date <= Date.now()) {
+                const { credentials } = await oauth2Client.refreshAccessToken();
+                // Google may omit refresh_token on refresh; keep the stored one
+                const merged = {
+                    ...tokens,
+                    ...credentials,
+                    refresh_token: credentials.refresh_token || tokens.refresh_token,
+                };
+                await saveTokensForAccount(account, merged);
+                oauth2Client.setCredentials(merged);
+            }
+
+            client = google.adsense({ version: ADSENSE_VERSION, auth: oauth2Client });
+
+            const adSenseClient = new AdSenseClient(client, publisherId);
+            cacheClient(cacheKey, adSenseClient);
+            return adSenseClient;
+        } catch (error) {
+            console.error(`Failed to use tokens for account ${account.alias}:`, (error as Error).message);
+        }
+    }
+
+    throw new Error(
+        `AdSense requires user-authorized OAuth 2.0 (the AdSense Management API does not support service accounts). ` +
+        `Re-authorize account "${account.alias}" with: search-console-mcp setup --engine=adsense`
+    );
+}
+=======
+    // 2. Load Tokens (OAuth)
+    const tokens = await loadTokensForAccount(account);
+
+    if (tokens) {
+        try {
+            const oauth2Client = new google.auth.OAuth2(
+                process.env.GOOGLE_CLIENT_ID || DEFAULT_CLIENT_ID,
+                process.env.GOOGLE_CLIENT_SECRET || DEFAULT_CLIENT_SECRET
+            );
+            oauth2Client.setCredentials(tokens);
+
+            // Check for expiry (refresh if needed)
+            if (tokens.expiry_date && tokens.expiry_date <= Date.now()) {
+                const { credentials } = await oauth2Client.refreshAccessToken();
+                // Google may omit refresh_token on refresh; keep the stored one
+                const merged = {
+                    ...tokens,
+                    ...credentials,
+                    refresh_token: credentials.refresh_token || tokens.refresh_token,
+                };
+                await saveTokensForAccount(account, merged);
+                oauth2Client.setCredentials(merged);
+            }
+
+            client = google.adsense({ version: ADSENSE_VERSION, auth: oauth2Client });
+
+            const adSenseClient = new AdSenseClient(client, publisherId);
+            cacheClient(cacheKey, adSenseClient);
+            return adSenseClient;
+        } catch (error) {
+            console.error(`Failed to use tokens for account ${account.alias}:`, (error as Error).message);
+        }
+    }
+
+    // 3. Support Service Account Path
+    const SCOPES = ['https://www.googleapis.com/auth/adsense.readonly'];
+    if (account.serviceAccountPath) {
+        const { assertServiceAccountKeyReadable } = await import('../common/auth/config.js');
+        assertServiceAccountKeyReadable(account);
+        const auth = new google.auth.GoogleAuth({
+            keyFilename: account.serviceAccountPath,
+            scopes: SCOPES
+        });
+        client = google.adsense({ version: ADSENSE_VERSION, auth });
+        const adSenseClient = new AdSenseClient(client, publisherId);
+        cacheClient(cacheKey, adSenseClient);
+        return adSenseClient;
+    }
+
+    // 4. Fallback to Environment Variables (Google Application Credentials)
+    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+        const auth = new google.auth.GoogleAuth({
+            scopes: SCOPES
+        });
+        client = google.adsense({ version: ADSENSE_VERSION, auth });
+        const adSenseClient = new AdSenseClient(client, publisherId);
+        cacheClient(cacheKey, adSenseClient);
+        return adSenseClient;
+    }
+
+    throw new Error(
+        `Authentication configuration not found for account ${account.alias}. ` +
+        `AdSense requires user-authorized OAuth 2.0 or a configured Service Account.`
+    );
+}
+>>>>>>> REPLACE

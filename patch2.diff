@@ -1,0 +1,72 @@
+<<<<<<< SEARCH
+import { prompts, withSpinner } from '../../utils/prompts.js';
+import { validateAlias } from '../../utils/validation.js';
+import { colors, printBoxHeader } from '../../utils/ui.js';
+import { ConfigStatus, log, printSuccess, printError, printInfo, showMcpConfigSnippet, supportProject } from '../shared.js';
+
+export async function configureAdSense(configStatus: ConfigStatus) {
+    const isConnected = configStatus.adsenseAccounts && configStatus.adsenseAccounts.length > 0;
+
+    if (isConnected) {
+        printSuccess('Google AdSense is already connected!');
+        const config = await loadConfig();
+        const accounts = Object.values(config.accounts).filter(a => a.engine === 'adsense');
+
+        log(`\nYour configured AdSense publisher accounts:`);
+        accounts.forEach(a => log(`  • ${a.alias} (Publisher ID: ${a.adsenseAccountId})`));
+
+        const reconf = await prompts.confirm('Would you like to reconfigure AdSense?', false);
+        if (!reconf) return;
+    }
+
+    await setupAdSense();
+}
+
+async function setupAdSense() {
+    printBoxHeader('Google AdSense Setup');
+    printInfo('AdSense uses read-only access via Secure Desktop Flow.');
+    printInfo('If you use the same email as GSC, it will appear as a separate account in the CLI.');
+
+    const clientId = DEFAULT_CLIENT_ID;
+    const clientSecret = DEFAULT_CLIENT_SECRET;
+=======
+import { prompts, withSpinner } from '../../utils/prompts.js';
+import { validateAlias, parseServiceAccountKey } from '../../utils/validation.js';
+import { colors, printBoxHeader } from '../../utils/ui.js';
+import { ConfigStatus, log, printSuccess, printError, printInfo, showMcpConfigSnippet, supportProject, printStep, acquireServiceAccountKey } from '../shared.js';
+
+export async function configureAdSense(configStatus: ConfigStatus) {
+    const isConnected = configStatus.adsenseAccounts && configStatus.adsenseAccounts.length > 0;
+
+    if (isConnected) {
+        printSuccess('Google AdSense is already connected!');
+        const config = await loadConfig();
+        const accounts = Object.values(config.accounts).filter(a => a.engine === 'adsense');
+
+        log(`\nYour configured AdSense publisher accounts:`);
+        accounts.forEach(a => log(`  • ${a.alias} (Publisher ID: ${a.adsenseAccountId})`));
+
+        const reconf = await prompts.confirm('Would you like to reconfigure AdSense?', false);
+        if (!reconf) return;
+    }
+
+    const method = await prompts.select('How would you like to connect AdSense?', [
+        { value: 'oauth', label: 'Login with Google (OAuth 2.0)', hint: 'Recommended — uses your browser' },
+        { value: 'sa', label: 'Service Account (JSON key)', hint: 'For servers & automation' },
+    ]);
+
+    if (method === 'oauth') {
+        await setupAdSenseOAuth();
+    } else {
+        await setupAdSenseServiceAccount();
+    }
+}
+
+async function setupAdSenseOAuth() {
+    printBoxHeader('Google AdSense Setup (OAuth)');
+    printInfo('AdSense uses read-only access via Secure Desktop Flow.');
+    printInfo('If you use the same email as GSC, it will appear as a separate account in the CLI.');
+
+    const clientId = DEFAULT_CLIENT_ID;
+    const clientSecret = DEFAULT_CLIENT_SECRET;
+>>>>>>> REPLACE
