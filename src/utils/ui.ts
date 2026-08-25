@@ -36,3 +36,25 @@ export function printStatusLine(label: string, isConnected: boolean) {
         console.error(`  ${colors.red}✘${colors.reset} ${label} not connected`);
     }
 }
+
+/**
+ * stderr message helpers shared by setup flows and standalone CLI commands.
+ * Everything goes to stderr — stdout belongs to machine-readable output
+ * (MCP stdio / `run` command results).
+ */
+
+export function log(text: string) {
+    console.error(text);
+}
+
+export function printSuccess(text: string) {
+    log(`${colors.green}✔${colors.reset} ${text}`);
+}
+
+export function printError(text: string) {
+    log(`${colors.red}✘${colors.reset} ${colors.bold}${text}${colors.reset}`);
+}
+
+export function printInfo(text: string) {
+    log(`${colors.blue}ℹ${colors.reset} ${colors.dim}${text}${colors.reset}`);
+}

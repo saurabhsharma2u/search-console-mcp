@@ -47,6 +47,20 @@ AdSense uses **user-authorized OAuth 2.0 only** — the AdSense Management API d
 2.  **Consent**: Approve the read-only `adsense.readonly` scope in the browser window.
 3.  **Account Selection**: If your Google account has multiple publisher accounts, pick one from the list. Setup runs a live validation query before saving.
 
+### Headless servers
+
+The AdSense Management API does not support service accounts and config files are machine-encrypted, so use the export/import pair to move an OAuth grant to a server:
+
+```bash
+# On any machine with a browser (after setup):
+npx search-console-mcp adsense-export
+
+# On the headless server:
+npx search-console-mcp adsense-import --token='...' --publisher-id='accounts/pub-...'
+```
+
+`adsense-import` validates the token live, auto-detects the publisher ID when omitted, and stores everything encrypted on the target machine. Over SSH, `setup --engine=adsense` also works directly — it prints the authorization URL plus `ssh -L 3000:localhost:3000` forwarding instructions when no browser is available.
+
 <Info>
   **Existing configurations are untouched.** Enabling AdSense requires a separate consent step; GSC, Bing, and GA4 users never need to re-authenticate until they opt in.
 </Info>

@@ -155,6 +155,30 @@ npx search-console-mcp setup --engine=adsense
   Enabling AdSense requires this separate consent step; your existing GSC, Bing, and GA4 configuration is never touched until you opt in.
 </Info>
 
+### Headless servers (Docker, CI, VPS)
+
+AdSense cannot use service accounts, and config files are machine-encrypted — credentials can't be copied between machines. Instead, authorize once on any machine with a browser and transfer the grant:
+
+1.  **On your laptop** (after `setup --engine=adsense`):
+
+    ```bash
+    npx search-console-mcp adsense-export
+    ```
+
+    This prints a ready-to-run `adsense-import` command containing the refresh token and publisher ID.
+
+2.  **On your server**:
+
+    ```bash
+    npx search-console-mcp adsense-import --token='...' --publisher-id='accounts/pub-...'
+    ```
+
+The token is validated live against Google before being stored, then saved encrypted on the server and refreshed automatically — no browser needed again.
+
+<Tip>
+  If you connect over SSH, you can also authorize directly on the server: when no browser is detected, `setup` prints the authorization URL plus port-forward instructions (`ssh -L 3000:localhost:3000 user@server`) instead of failing. This works for all engines.
+</Tip>
+
 Full parameter reference: [Google AdSense Tools](/tools/adsense).
 
 ---

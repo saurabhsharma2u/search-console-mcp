@@ -256,12 +256,19 @@ describe('Google Client', () => {
     });
 
     describe('startLocalFlow', () => {
+        beforeEach(() => {
+            // Keep canOpenBrowser deterministic regardless of host env
+            delete process.env.CI;
+            delete process.env.NO_BROWSER;
+        });
+
         it('should start server and resolve on callback', async () => {
             const { default: open } = await import('open');
 
             let requestHandler: any;
             const mockServer: any = {
                 close: vi.fn(),
+                on: vi.fn(),
             };
             mockServer.listen = vi.fn().mockReturnValue(mockServer);
 
@@ -288,10 +295,46 @@ describe('Google Client', () => {
             expect(open).toHaveBeenCalled();
         });
 
+        it('should not open a browser in headless mode but still resolve on callback', async () => {
+            const { default: open } = await import('open');
+            const errorSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+            process.env.NO_BROWSER = '1';
+
+            try {
+                let requestHandler: any;
+                const mockServer: any = { close: vi.fn(), on: vi.fn() };
+                mockServer.listen = vi.fn().mockReturnValue(mockServer);
+
+                mockCreateServer.mockImplementation((handler: any) => {
+                    requestHandler = handler;
+                    return mockServer;
+                });
+                mockOAuth2Client.getToken.mockResolvedValue({ tokens: { access_token: 'token' } });
+
+                const promise = startLocalFlow('id', 'secret');
+                await new Promise(resolve => setTimeout(resolve, 0));
+
+                expect(open).not.toHaveBeenCalled();
+                const logged = errorSpy.mock.calls.map(c => c.join(' ')).join('\n');
+                expect(logged).toContain('No browser available');
+                expect(logged).toContain('ssh -L 3000:localhost:3000');
+
+                await requestHandler(
+                    { url: '/oauth2callback?code=auth_code', headers: { host: 'localhost:3000' } },
+                    { writeHead: vi.fn(), end: vi.fn() }
+                );
+                await expect(promise).resolves.toEqual({ access_token: 'token' });
+            } finally {
+                delete process.env.NO_BROWSER;
+                errorSpy.mockRestore();
+            }
+        });
+
         it('should handle error in callback', async () => {
             let requestHandler: any;
             const mockServer: any = {
                 close: vi.fn(),
+                on: vi.fn(),
             };
             mockServer.listen = vi.fn().mockReturnValue(mockServer);
 

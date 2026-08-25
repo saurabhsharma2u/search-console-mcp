@@ -114,7 +114,7 @@ Paste these straight into your agent:
 | **Google Search Console** | Service Account | Set `GOOGLE_APPLICATION_CREDENTIALS` — [details](#service-account-advanced) |
 | **Bing Webmaster Tools** | API Key | `export BING_API_KEY="..."` — [get a key](https://www.bing.com/webmasters/settings/api) |
 | **Google Analytics 4** | Service Account | `npx search-console-mcp setup --engine=ga4` |
-| **Google AdSense** | OAuth (read-only) | `npx search-console-mcp setup --engine=adsense` |
+| **Google AdSense** | OAuth (read-only) | `npx search-console-mcp setup --engine=adsense` — [headless servers](#headless-servers) |
 
 Manage everything from the CLI:
 
@@ -125,6 +125,23 @@ npx search-console-mcp accounts remove --account=you@company.com
 ```
 
 When your agent queries a site, the server auto-resolves which account owns it — no manual switching. [Multi-account docs →](https://searchconsolemcp.saurabh.app/getting-started/multi-account)
+
+<details>
+<summary id="headless-servers">Headless servers (Docker, CI, VPS)</summary>
+
+AdSense cannot use service accounts, and config files are machine-encrypted — so authorize once on any machine with a browser and transfer the grant:
+
+```bash
+# 1. On your laptop (after setup --engine=adsense):
+npx search-console-mcp adsense-export
+
+# 2. On the server (prints a ready-to-run command on step 1):
+npx search-console-mcp adsense-import --token='...' --publisher-id='accounts/pub-...'
+```
+
+The token is stored encrypted on the server and auto-refreshes — no browser needed again. Setup over SSH also works directly: when no browser is detected, `setup` prints the authorization URL plus `ssh -L 3000:localhost:3000` port-forward instructions instead of failing.
+
+</details>
 
 ---
 

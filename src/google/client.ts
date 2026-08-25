@@ -300,6 +300,32 @@ export async function pollForTokens(clientId: string, clientSecret: string, devi
   throw new Error("Device Flow is not supported for Search Console API.");
 }
 
+/**
+ * True when a browser can reasonably be opened on this machine.
+ *
+ * Override behavior:
+ *  - NO_BROWSER=1  forces headless mode (print URL + tunnel instructions)
+ *  - CI            any CI environment is treated as headless
+ *  - Linux/BSD need DISPLAY or WAYLAND_DISPLAY; macOS/Windows always have a UI
+ */
+export function canOpenBrowser(env: NodeJS.ProcessEnv = process.env, platform: string = process.platform): boolean {
+  if (env.NO_BROWSER) return false;
+  if (env.CI) return false;
+  if (platform === 'darwin' || platform === 'win32') return true;
+  return !!(env.DISPLAY || env.WAYLAND_DISPLAY);
+}
+
+function printManualAuthInstructions(authUrl: string) {
+  console.log('\nNo browser available on this machine. Authorize from any device with a browser:\n');
+  console.log(`  ${authUrl}\n`);
+  console.log('If you are opening this URL on a DIFFERENT machine (e.g. your laptop while');
+  console.log('connected over SSH), forward the callback port first so Google\'s redirect');
+  console.log('reaches this machine:\n');
+  console.log('  ssh -L 3000:localhost:3000 <user>@<this-server>');
+  console.log('\n(VS Code users: forward port 3000 under the Ports panel instead.)');
+  console.log('\nWaiting for authorization on http://localhost:3000/oauth2callback ...');
+}
+
 export async function startLocalFlow(clientId: string, clientSecret: string, scopes: string[] = SCOPES): Promise<any> {
   const { createServer } = await import('http');
   const { google } = await import('googleapis');
@@ -315,6 +341,7 @@ export async function startLocalFlow(clientId: string, clientSecret: string, sco
   });
 
   return new Promise((resolve, reject) => {
+    let settled = false;
     const server = createServer(async (req, res) => {
       try {
         if (req.url?.startsWith('/oauth2callback')) {
@@ -325,6 +352,7 @@ export async function startLocalFlow(clientId: string, clientSecret: string, sco
             const { tokens } = await oauth2Client.getToken(code);
             res.writeHead(200, { 'Content-Type': 'text/html' });
             res.end('<h1>Authentication Successful!</h1><p>You can close this tab now and return to your terminal.</p>');
+            settled = true;
             server.close();
             resolve(tokens);
           }
@@ -332,12 +360,35 @@ export async function startLocalFlow(clientId: string, clientSecret: string, sco
       } catch (e) {
         res.writeHead(500);
         res.end('<h1>Authentication Failed</h1>');
+        settled = true;
         server.close();
         reject(e);
       }
-    }).listen(3000);
+    });
 
-    console.log('\nOpening your browser to authorize Search Console access...');
-    open(authUrl);
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      if (!settled && err.code === 'EADDRINUSE') {
+        settled = true;
+        reject(new Error(
+          'Port 3000 is already in use — needed for the OAuth callback. ' +
+          'Free the port (or stop the other process) and retry.'
+        ));
+      } else if (!settled) {
+        settled = true;
+        reject(err);
+      }
+    });
+
+    server.listen(3000);
+
+    if (canOpenBrowser()) {
+      console.log('\nOpening your browser to authorize account access...');
+      Promise.resolve(open(authUrl)).catch(() => {
+        console.log('\nCould not open a browser automatically.');
+        printManualAuthInstructions(authUrl);
+      });
+    } else {
+      printManualAuthInstructions(authUrl);
+    }
   });
 }

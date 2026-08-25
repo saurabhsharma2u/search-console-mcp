@@ -115,6 +115,7 @@ async function setupAdSense() {
         await updateAccount(account);
         printSuccess(`Successfully added AdSense account ${alias}!`);
         showMcpConfigSnippet();
+        printInfo('Headless server? Export this grant with: search-console-mcp adsense-export');
 
         await supportProject('AdSense');
     } catch (e) {

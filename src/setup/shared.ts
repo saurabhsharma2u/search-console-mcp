@@ -4,7 +4,7 @@ import { homedir } from 'os';
 import { execSync } from 'child_process';
 import { createHash } from 'crypto';
 import { fileURLToPath } from 'url';
-import { colors, printStatusLine } from '../utils/ui.js';
+import { colors, log, printError, printInfo, printStatusLine, printSuccess } from '../utils/ui.js';
 import { prompts, withSpinner } from '../utils/prompts.js';
 import {
     validateKeyFilePath, parseServiceAccountKey, parseServiceAccountJson,
@@ -12,14 +12,14 @@ import {
 } from '../utils/validation.js';
 import { loadConfig, saveConfig, isServiceAccountKeyMissing } from '../common/auth/config.js';
 
+// stderr message helpers now live in utils/ui.ts; re-exported here so
+// existing setup flows keep their import paths.
+export { log, printSuccess, printError, printInfo };
+
 /**
  * Shared helpers for setup flows. All UI output goes to stderr —
  * stdout belongs to machine-readable output (MCP stdio / --status).
  */
-
-export function log(text: string) {
-    console.error(text);
-}
 
 const pkgVersion = (() => {
     try {
@@ -45,18 +45,6 @@ export function printBanner() {
 
 export function printStep(num: number, text: string) {
     log(`\n${colors.bold}${colors.cyan}Step ${num}${colors.reset} ${colors.dim}─${colors.reset} ${colors.bold}${text}${colors.reset}\n`);
-}
-
-export function printSuccess(text: string) {
-    log(`${colors.green}✔${colors.reset} ${text}`);
-}
-
-export function printError(text: string) {
-    log(`${colors.red}✘${colors.reset} ${colors.bold}${text}${colors.reset}`);
-}
-
-export function printInfo(text: string) {
-    log(`${colors.blue}ℹ${colors.reset} ${colors.dim}${text}${colors.reset}`);
 }
 
 export interface ConfigStatus {

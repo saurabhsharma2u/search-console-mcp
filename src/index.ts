@@ -481,6 +481,18 @@ async function main() {
     return;
   }
 
+  if (command === 'adsense-export') {
+    const { runExport } = await import('./adsense/transfer.js');
+    process.exitCode = await runExport(process.argv.slice(3));
+    return;
+  }
+
+  if (command === 'adsense-import') {
+    const { runImport } = await import('./adsense/transfer.js');
+    process.exitCode = await runImport(process.argv.slice(3));
+    return;
+  }
+
   if (command === 'diagnostics') {
     const results = await runDiagnostics();
     console.log(JSON.stringify(results, null, 2));
