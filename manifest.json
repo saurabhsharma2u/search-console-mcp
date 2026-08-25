@@ -1,8 +1,8 @@
 {
   "manifest_version": "0.2",
   "name": "search-console-mcp",
-  "version": "2.1.0",
-  "description": "Google Search Console + Bing Webmaster Tools + GA4 + Adsense — unified SEO intelligence for AI agents.",
+  "version": "2.1.1",
+  "description": "Google Search Console + Bing + GA4 + AdSense — unified SEO intelligence for AI agents.",
   "author": {
     "name": "Saurabh Sharma"
   },
