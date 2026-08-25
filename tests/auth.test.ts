@@ -133,6 +133,49 @@ describe('Authentication & Security (Multi-Account)', () => {
         expect(removeAccount).toHaveBeenCalledWith('google_test');
     });
 
+    it('should resolve logout by alias (case-insensitive)', async () => {
+        const { loadConfig, removeAccount } = await import('../src/common/auth/config.js');
+        vi.mocked(loadConfig).mockResolvedValue({
+            accounts: {
+                'google_test': mockAccount
+            }
+        });
+
+        await logout('TEST@EXAMPLE.COM');
+
+        expect(mockDeletePassword).toHaveBeenCalled();
+        expect(removeAccount).toHaveBeenCalledWith('google_test');
+    });
+
+    it('should throw when no account matches the logout identifier', async () => {
+        const { loadConfig, removeAccount } = await import('../src/common/auth/config.js');
+        vi.mocked(loadConfig).mockResolvedValue({ accounts: {} });
+
+        await expect(logout('ghost@example.com')).rejects.toThrow(/No account found matching "ghost@example\.com"/);
+        expect(mockDeletePassword).not.toHaveBeenCalled();
+        expect(removeAccount).not.toHaveBeenCalled();
+    });
+
+    it('should require an account identifier', async () => {
+        const { removeAccount } = await import('../src/common/auth/config.js');
+        await expect(logout()).rejects.toThrow(/Specify an account/);
+        expect(removeAccount).not.toHaveBeenCalled();
+    });
+
+    it('should still remove the account when keychain deletion fails', async () => {
+        const { loadConfig, removeAccount } = await import('../src/common/auth/config.js');
+        vi.mocked(loadConfig).mockResolvedValue({
+            accounts: {
+                'google_test': mockAccount
+            }
+        });
+        mockDeletePassword.mockRejectedValue(new Error('Keychain unavailable'));
+
+        await expect(logout('google_test')).resolves.toBeUndefined();
+
+        expect(removeAccount).toHaveBeenCalledWith('google_test');
+    });
+
     it('should fetch user email', async () => {
         const email = await getUserEmail({ access_token: 'abc' });
         expect(email).toBe('test@example.com');

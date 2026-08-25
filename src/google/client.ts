@@ -1,6 +1,6 @@
 import { google, searchconsole_v1 } from 'googleapis';
 import nodeMachineId from 'node-machine-id';
-import { AccountConfig, loadConfig, saveConfig, updateAccount, removeAccount, assertServiceAccountKeyReadable } from '../common/auth/config.js';
+import { AccountConfig, findAccountByAliasOrId, loadConfig, saveConfig, updateAccount, removeAccount, assertServiceAccountKeyReadable } from '../common/auth/config.js';
 import { resolveAccount } from '../common/auth/resolver.js';
 import { logger } from '../utils/logger.js';
 const { machineIdSync } = nodeMachineId;
@@ -253,20 +253,33 @@ export async function saveTokensForAccount(account: AccountConfig, tokens: any) 
   } catch (e) { }
 }
 
-export async function logout(accountId: string) {
-  const config = await loadConfig();
-  const account = config.accounts[accountId];
-  if (!account) return;
-
-  // 1. Try Keychain
+export async function purgeStoredTokens(account: AccountConfig): Promise<void> {
   try {
     const { Entry } = await import('@napi-rs/keyring');
     const entry = new Entry(SERVICE_NAME, account.alias);
     await entry.deletePassword();
-  } catch (e) { }
+  } catch (e) {
+    // Best-effort: keychain may be unavailable (headless Linux) or empty.
+  }
+}
+
+export async function logout(accountId?: string) {
+  const config = await loadConfig();
+
+  if (!accountId) {
+    throw new Error('Specify an account: search-console-mcp logout <email_or_id> (list with: search-console-mcp accounts list)');
+  }
+
+  const account = findAccountByAliasOrId(config.accounts, accountId);
+  if (!account) {
+    throw new Error(`No account found matching "${accountId}". List accounts with: search-console-mcp accounts list`);
+  }
+
+  // 1. Try Keychain
+  await purgeStoredTokens(account);
 
   // 2. Remove from config
-  await removeAccount(accountId);
+  await removeAccount(account.id);
 }
 
 export interface DeviceCodeResponse {

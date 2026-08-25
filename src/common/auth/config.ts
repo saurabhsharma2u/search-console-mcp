@@ -243,3 +243,15 @@ export async function removeAccount(accountId: string) {
     delete config.accounts[accountId];
     await saveConfig(config);
 }
+
+/**
+ * Resolve an account by exact ID first, then by case-insensitive alias.
+ * Shared by the accounts CLI and logout so identifier semantics are
+ * consistent across commands.
+ */
+export function findAccountByAliasOrId(accounts: Record<string, AccountConfig>, identifier: string): AccountConfig | undefined {
+    if (accounts[identifier]) return accounts[identifier];
+    return Object.values(accounts).find(
+        a => a.alias?.toLowerCase() === identifier.toLowerCase() || a.id === identifier
+    );
+}
