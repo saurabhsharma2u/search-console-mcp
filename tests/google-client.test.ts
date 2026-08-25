@@ -257,9 +257,16 @@ describe('Google Client', () => {
 
     describe('startLocalFlow', () => {
         beforeEach(() => {
-            // Keep canOpenBrowser deterministic regardless of host env
+            // Keep canOpenBrowser deterministic regardless of host env.
+            // Linux CI runners have no DISPLAY, which would silently route
+            // startLocalFlow into its headless branch.
             delete process.env.CI;
             delete process.env.NO_BROWSER;
+            process.env.DISPLAY = ':0';
+        });
+
+        afterEach(() => {
+            delete process.env.DISPLAY;
         });
 
         it('should start server and resolve on callback', async () => {
