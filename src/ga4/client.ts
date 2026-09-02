@@ -1,6 +1,7 @@
 import { BetaAnalyticsDataClient } from '@google-analytics/data';
 import { google } from 'googleapis';
 import { AccountConfig, loadConfig, assertServiceAccountKeyReadable } from '../common/auth/config.js';
+import { expandHome } from '../utils/paths.js';
 import { resolveAccount } from '../common/auth/resolver.js';
 import { loadTokensForAccount, saveTokensForAccount, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET } from '../google/client.js';
 
@@ -140,7 +141,7 @@ export async function getGA4Client(propertyId?: string, accountId?: string): Pro
     if (account.serviceAccountPath) {
         assertServiceAccountKeyReadable(account);
         client = new BetaAnalyticsDataClient({
-            keyFilename: account.serviceAccountPath
+            keyFilename: expandHome(account.serviceAccountPath)
         });
         const ga4Client = new GA4Client(client, targetPropertyId);
         cacheClient(cacheKey, ga4Client);

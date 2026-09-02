@@ -3,6 +3,7 @@ import nodeMachineId from 'node-machine-id';
 import { AccountConfig, findAccountByAliasOrId, loadConfig, saveConfig, updateAccount, removeAccount, assertServiceAccountKeyReadable } from '../common/auth/config.js';
 import { resolveAccount } from '../common/auth/resolver.js';
 import { logger } from '../utils/logger.js';
+import { expandHome } from '../utils/paths.js';
 const { machineIdSync } = nodeMachineId;
 
 const SCOPES = [
@@ -74,7 +75,7 @@ export async function getSearchConsoleClient(siteUrl?: string, accountId?: strin
   if (account.serviceAccountPath) {
     assertServiceAccountKeyReadable(account);
     const auth = new google.auth.GoogleAuth({
-      keyFilename: account.serviceAccountPath,
+      keyFilename: expandHome(account.serviceAccountPath),
       scopes: SCOPES
     });
     const client = google.searchconsole({ version: 'v1', auth });
@@ -173,7 +174,7 @@ export async function getIndexingClient(siteUrl?: string, accountId?: string): P
   if (account.serviceAccountPath) {
     assertServiceAccountKeyReadable(account);
     const auth = new google.auth.GoogleAuth({
-      keyFilename: account.serviceAccountPath,
+      keyFilename: expandHome(account.serviceAccountPath),
       scopes: INDEXING_SCOPES
     });
     const client = await auth.getClient();
