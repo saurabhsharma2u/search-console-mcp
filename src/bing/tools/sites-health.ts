@@ -4,7 +4,7 @@ import * as bingAnalytics from './analytics.js';
 import * as bingCrawl from './crawl.js';
 import { parseMicrosoftDate } from '../../common/utils/dates.js';
 import { limitConcurrency } from '../../common/concurrency.js';
-import { resolveSiteProperty } from '../../common/auth/resolver.js';
+import { resolveSitePropertyOrFallback } from '../../common/auth/resolver.js';
 
 /**
  * Health status for a single Bing site property.
@@ -46,7 +46,7 @@ export interface BingSiteHealthReport {
  * Run a health check on a single Bing site.
  */
 async function checkSite(rawSiteUrl: string): Promise<BingSiteHealthReport> {
-    const { siteUrl } = await resolveSiteProperty(rawSiteUrl, 'bing').catch(() => ({ siteUrl: rawSiteUrl }));
+    const siteUrl = await resolveSitePropertyOrFallback(rawSiteUrl, 'bing');
     const issues: string[] = [];
 
     const [sitemapList, comparison, anomalies, crawlIssues, crawlStats] = await Promise.all([

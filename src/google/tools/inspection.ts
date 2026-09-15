@@ -1,7 +1,7 @@
 import { getSearchConsoleClient } from '../client.js';
 import { searchconsole_v1 } from 'googleapis';
 import { limitConcurrency } from '../../common/concurrency.js';
-import { resolveSiteProperty, resolveFullWebUrl } from '../../common/auth/resolver.js';
+import { resolveSitePropertyOrFallback, resolveFullWebUrl } from '../../common/auth/resolver.js';
 
 /**
  * Inspects a URL for a site to see its current indexing status in Google Search.
@@ -17,7 +17,7 @@ export async function inspectUrl(
   languageCode: string = 'en-US',
   existingClient?: searchconsole_v1.Searchconsole
 ): Promise<searchconsole_v1.Schema$InspectUrlIndexResponse> {
-  const { siteUrl: targetSiteUrl } = await resolveSiteProperty(siteUrl, 'google').catch(() => ({ siteUrl }));
+  const targetSiteUrl = await resolveSitePropertyOrFallback(siteUrl, 'google');
   const fullInspectionUrl = resolveFullWebUrl(inspectionUrl);
   const client = existingClient || await getSearchConsoleClient(siteUrl);
   const res = await client.urlInspection.index.inspect({

@@ -1,7 +1,7 @@
 import { getSearchConsoleClient } from '../client.js';
 import { searchconsole_v1 } from 'googleapis';
 import { logger } from '../../utils/logger.js';
-import { resolveSiteProperty } from '../../common/auth/resolver.js';
+import { resolveSitePropertyOrFallback } from '../../common/auth/resolver.js';
 
 const CACHE_TTL_MS = 60 * 1000; // 60 seconds
 const MAX_CACHE_SIZE = 100;
@@ -176,7 +176,7 @@ export async function queryAnalytics(options: AnalyticsOptions): Promise<searchc
 
   const fetchPromise = (async () => {
     try {
-      const { siteUrl: targetSiteUrl } = await resolveSiteProperty(options.siteUrl, 'google').catch(() => ({ siteUrl: options.siteUrl }));
+      const targetSiteUrl = await resolveSitePropertyOrFallback(options.siteUrl, 'google');
       const client = await getSearchConsoleClient(options.siteUrl, options.accountId);
 
       const resolvedEndDate = options.endDate && options.endDate.trim().length > 0 ? options.endDate : (() => {

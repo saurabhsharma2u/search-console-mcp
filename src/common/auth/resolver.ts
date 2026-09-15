@@ -123,6 +123,78 @@ export async function resolveAccount(siteUrl: string, engine: EngineType): Promi
     throw error;
 }
 
+/**
+ * Selects the single best-matching registered property string from `candidates`
+ * for a caller-supplied `target` (a domain, URL prefix, or `sc-domain:` string).
+ *
+ * Matching rules, in order:
+ *
+ * 1. Exact match. Both sides are run through {@link normalizeWebsite} (case,
+ *    trailing slash) and compared. An exact match is returned verbatim, so a
+ *    `sc-domain:` property can never resolve to a URL-prefix property (or vice
+ *    versa) when the caller already named the exact property string, and a
+ *    URL-prefix property with a path (e.g. `https://example.com/en-gb/`) only
+ *    ever resolves to itself.
+ *
+ * 2. Fuzzy match, ONLY when `target` is a bare domain (no protocol, no
+ *    `sc-domain:` prefix, no path — e.g. `example.com`). Candidates whose host
+ *    (via {@link extractHost}) equals the target host EXACTLY are considered
+ *    (no subdomain-suffix matching in either direction: `hosting.example.com`
+ *    never matches `example.com`). Among same-host candidates, preference is:
+ *    `sc-domain:<host>` > `https://<host>/` (root) > `http://<host>/` (root).
+ *    If same-host candidates exist but none of them are a domain property or a
+ *    root URL-prefix property (e.g. only locale-subfolder properties like
+ *    `https://example.com/en-gb/` and `https://example.com/de-de/`), the match
+ *    is ambiguous: this throws a {@link ResolutionError} with code
+ *    `'AMBIGUOUS'` listing the candidates and telling the caller to pass the
+ *    full property string instead.
+ *
+ * 3. Anything else (protocol-qualified or `sc-domain:`-prefixed input with no
+ *    exact match, or a bare domain with no same-host candidate at all) returns
+ *    `undefined` — callers should not guess across property types and should
+ *    fall back to their own default behavior.
+ */
+export function selectSiteProperty(target: string, candidates: string[]): string | undefined {
+    if (!target || !candidates || candidates.length === 0) return undefined;
+
+    const normalizedTarget = normalizeWebsite(target);
+
+    // 1. Exact match — compare normalized values so type/path are preserved.
+    for (const candidate of candidates) {
+        if (normalizeWebsite(candidate).value === normalizedTarget.value) {
+            return candidate;
+        }
+    }
+
+    // 2. Fuzzy match only applies to bare-domain input (no protocol/path/sc-domain:).
+    if (normalizedTarget.type !== 'domain') {
+        return undefined;
+    }
+
+    const targetHost = extractHost(target);
+    if (!targetHost) return undefined;
+
+    const sameHost = candidates.filter(c => extractHost(c) === targetHost);
+    if (sameHost.length === 0) return undefined;
+
+    const domainProperty = sameHost.find(c => normalizeWebsite(c).value === `sc-domain:${targetHost}`);
+    if (domainProperty) return domainProperty;
+
+    const httpsRoot = sameHost.find(c => normalizeWebsite(c).value === `https://${targetHost}`);
+    if (httpsRoot) return httpsRoot;
+
+    const httpRoot = sameHost.find(c => normalizeWebsite(c).value === `http://${targetHost}`);
+    if (httpRoot) return httpRoot;
+
+    // Same host, but only non-root URL-prefix properties (e.g. locale subfolders) — ambiguous.
+    const error = new Error(
+        `Ambiguous site '${target}': multiple properties match this domain (${sameHost.join(', ')}). ` +
+        `Pass the full property string (e.g. "sc-domain:${targetHost}" or a specific URL-prefix property) instead.`
+    ) as ResolutionError;
+    error.code = 'AMBIGUOUS';
+    throw error;
+}
+
 const gscSitesCache = new Map<string, { sites: string[]; timestamp: number }>();
 
 async function getGoogleAuthorizedSites(accountId?: string): Promise<string[]> {
@@ -153,6 +225,13 @@ export interface ResolvedSiteProperty {
 /**
  * Resolves both the AccountConfig AND the engine-specific registered property identifier.
  *
+ * Uses {@link selectSiteProperty} against `account.websites` (step 1) and then, for
+ * Google, against the live list of authorized GSC properties (step 2) — see its doc
+ * comment for the exact/fuzzy matching rules and the AMBIGUOUS error it can throw.
+ * Neither step guesses across property types (a `sc-domain:` input will never be
+ * satisfied by a URL-prefix candidate or vice versa) unless the input is a bare
+ * domain, in which case same-host candidates are ranked deterministically.
+ *
  * For example:
  * Input "example.com" for Google  -> { account, siteUrl: "sc-domain:example.com" }
  * Input "sc-domain:example.com" for Bing -> { account, siteUrl: "https://example.com/" }
@@ -165,12 +244,9 @@ export async function resolveSiteProperty(siteUrl: string, engine: EngineType): 
 
     const targetHost = extractHost(siteUrl);
 
-    // 1. Look for exact registered property string in account.websites
-    if (account.websites && account.websites.length > 0 && targetHost) {
-        const matchingWebsite = account.websites.find(w => {
-            const wHost = extractHost(w);
-            return wHost && (targetHost === wHost || targetHost.endsWith('.' + wHost) || wHost.endsWith('.' + targetHost));
-        });
+    // 1. Look for exact/fuzzy registered property string in account.websites
+    if (account.websites && account.websites.length > 0) {
+        const matchingWebsite = selectSiteProperty(siteUrl, account.websites);
 
         if (matchingWebsite) {
             let finalUrl = matchingWebsite;
@@ -185,10 +261,7 @@ export async function resolveSiteProperty(siteUrl: string, engine: EngineType): 
     if (engine === 'google' && targetHost) {
         const authorizedSites = await getGoogleAuthorizedSites(account.id);
         if (authorizedSites.length > 0) {
-            const matchedSite = authorizedSites.find(s => {
-                const sHost = extractHost(s);
-                return sHost && (targetHost === sHost || targetHost.endsWith('.' + sHost) || sHost.endsWith('.' + targetHost));
-            });
+            const matchedSite = selectSiteProperty(siteUrl, authorizedSites);
             if (matchedSite) {
                 return { account, siteUrl: matchedSite };
             }
@@ -207,6 +280,32 @@ export async function resolveSiteProperty(siteUrl: string, engine: EngineType): 
     }
 
     return { account, siteUrl: fallbackUrl };
+}
+
+/**
+ * Convenience wrapper around {@link resolveSiteProperty} for call sites that only need
+ * the resolved property string and want today's historic fallback behavior: if resolution
+ * fails for an operational reason (no account found, the site isn't in any account's
+ * authorized boundary, a network/API error listing GSC properties, etc.) the raw `siteUrl`
+ * is returned unchanged, exactly like the `.catch(() => ({ siteUrl }))` pattern these call
+ * sites used before.
+ *
+ * The one exception is a `ResolutionError` with `code === 'AMBIGUOUS'`: that error means
+ * {@link selectSiteProperty} found multiple candidate properties and deliberately refused to
+ * guess, with a message telling the caller which property string to pass instead. Swallowing
+ * it would silently send the wrong (raw, unresolved) site to the API and hide that message
+ * from the user, so it is re-thrown instead of falling back.
+ */
+export async function resolveSitePropertyOrFallback(siteUrl: string, engine: EngineType): Promise<string> {
+    try {
+        const { siteUrl: resolved } = await resolveSiteProperty(siteUrl, engine);
+        return resolved;
+    } catch (err) {
+        if ((err as ResolutionError)?.code === 'AMBIGUOUS') {
+            throw err;
+        }
+        return siteUrl;
+    }
 }
 
 /**

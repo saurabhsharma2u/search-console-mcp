@@ -1,6 +1,6 @@
 import { getSearchConsoleClient } from '../client.js';
 import { searchconsole_v1 } from 'googleapis';
-import { resolveSiteProperty } from '../../common/auth/resolver.js';
+import { resolveSitePropertyOrFallback } from '../../common/auth/resolver.js';
 
 /**
  * List all sitemaps submitted for a specific site.
@@ -9,7 +9,7 @@ import { resolveSiteProperty } from '../../common/auth/resolver.js';
  * @returns A list of sitemap metadata objects.
  */
 export async function listSitemaps(siteUrl: string): Promise<searchconsole_v1.Schema$WmxSitemap[]> {
-  const { siteUrl: targetSiteUrl } = await resolveSiteProperty(siteUrl, 'google').catch(() => ({ siteUrl }));
+  const targetSiteUrl = await resolveSitePropertyOrFallback(siteUrl, 'google');
   const client = await getSearchConsoleClient(siteUrl);
   const res = await client.sitemaps.list({ siteUrl: targetSiteUrl });
   return res.data.sitemap || [];
@@ -23,7 +23,7 @@ export async function listSitemaps(siteUrl: string): Promise<searchconsole_v1.Sc
  * @returns A success message.
  */
 export async function submitSitemap(siteUrl: string, feedpath: string): Promise<string> {
-  const { siteUrl: targetSiteUrl } = await resolveSiteProperty(siteUrl, 'google').catch(() => ({ siteUrl }));
+  const targetSiteUrl = await resolveSitePropertyOrFallback(siteUrl, 'google');
   const client = await getSearchConsoleClient(siteUrl);
   await client.sitemaps.submit({ siteUrl: targetSiteUrl, feedpath });
   return `Successfully submitted sitemap: ${feedpath} for ${targetSiteUrl}`;
@@ -37,7 +37,7 @@ export async function submitSitemap(siteUrl: string, feedpath: string): Promise<
  * @returns A success message.
  */
 export async function deleteSitemap(siteUrl: string, feedpath: string): Promise<string> {
-  const { siteUrl: targetSiteUrl } = await resolveSiteProperty(siteUrl, 'google').catch(() => ({ siteUrl }));
+  const targetSiteUrl = await resolveSitePropertyOrFallback(siteUrl, 'google');
   const client = await getSearchConsoleClient(siteUrl);
   await client.sitemaps.delete({ siteUrl: targetSiteUrl, feedpath });
   return `Successfully deleted sitemap: ${feedpath} from ${targetSiteUrl}`;
@@ -51,7 +51,7 @@ export async function deleteSitemap(siteUrl: string, feedpath: string): Promise<
  * @returns Sitemap details including status and item counts.
  */
 export async function getSitemap(siteUrl: string, feedpath: string): Promise<searchconsole_v1.Schema$WmxSitemap> {
-  const { siteUrl: targetSiteUrl } = await resolveSiteProperty(siteUrl, 'google').catch(() => ({ siteUrl }));
+  const targetSiteUrl = await resolveSitePropertyOrFallback(siteUrl, 'google');
   const client = await getSearchConsoleClient(siteUrl);
   const res = await client.sitemaps.get({ siteUrl: targetSiteUrl, feedpath });
   return res.data;
