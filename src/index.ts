@@ -38,6 +38,7 @@ import { loadConfig, removeAccount, updateAccount, AccountConfig } from './commo
 import { resolveAccount, normalizeWebsite } from './common/auth/resolver.js';
 import { getSearchConsoleClient } from './google/client.js';
 import { startSseServer } from "./transport/http.js";
+import { randomBytes } from "crypto";
 import { registerMcpResources } from "./resources/index.js";
 import { getBingClient } from './bing/client.js';
 import { limitConcurrency } from './common/concurrency.js';
@@ -570,7 +571,35 @@ async function main() {
   const port = portArg ? parseInt(portArg.split("=")[1], 10) : 3000;
 
   if (isSseMode) {
-    await startSseServer(server, port);
+    // --- SSE hardening (issue #114) ---
+    const hostArg = process.argv.find((arg) => arg.startsWith("--host="));
+    const host = hostArg ? hostArg.split("=")[1] : process.env.MCP_HTTP_HOST || "127.0.0.1";
+
+    // Bearer token: --token= flag > MCP_HTTP_TOKEN env > auto-generated per-process token.
+    const tokenArg = process.argv.find((arg) => arg.startsWith("--token="));
+    const token =
+      tokenArg ? tokenArg.split("=")[1] : process.env.MCP_HTTP_TOKEN || randomBytes(24).toString("base64url");
+
+    const allowedOriginsEnv = process.env.MCP_HTTP_ALLOWED_ORIGINS;
+    const allowedOrigins = allowedOriginsEnv
+      ? allowedOriginsEnv.split(",").map((o) => o.trim()).filter(Boolean)
+      : undefined;
+
+    console.error(`${colors.bold}${colors.magenta}🔒 SSE Security${colors.reset}`);
+    console.error(`${colors.blue}ℹ${colors.reset} Bound to ${colors.bold}http://${host}:${port}${colors.reset}`);
+    if (tokenArg || process.env.MCP_HTTP_TOKEN) {
+      console.error(`${colors.green}✔${colors.reset} Using bearer token from ${tokenArg ? '--token' : 'MCP_HTTP_TOKEN'}`);
+    } else {
+      console.error(`${colors.green}✔${colors.reset} Bearer token auto-generated (valid for this process):`);
+      console.error(`  ${colors.bold}${colors.cyan}${token}${colors.reset}`);
+      console.error(`${colors.dim}  Connect clients with: Authorization: Bearer <token> (SSE: /sse?token=<token>)${colors.reset}`);
+      console.error(`${colors.dim}  Set MCP_HTTP_TOKEN to pin your own token.${colors.reset}`);
+    }
+    console.error(`\n`);
+    console.error(`${colors.yellow}⚠${colors.reset} ${colors.dim}SSE/serve mode is deprecated and scheduled for removal in the next release. Use stdio instead.${colors.reset}`);
+    console.error(`\n`);
+
+    await startSseServer(server, { port, host, token, allowedOrigins });
   } else {
     const transport = new StdioServerTransport();
     await server.connect(transport);
