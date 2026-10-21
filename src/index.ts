@@ -572,13 +572,25 @@ async function main() {
 
   if (isSseMode) {
     // --- SSE hardening (issue #114) ---
+    // Flag values must include everything after the FIRST "=" — tokens are
+    // base64url and can contain padding "=", so split("=")[1] would truncate them.
     const hostArg = process.argv.find((arg) => arg.startsWith("--host="));
-    const host = hostArg ? hostArg.split("=")[1] : process.env.MCP_HTTP_HOST || "127.0.0.1";
+    const host = hostArg ? hostArg.slice(hostArg.indexOf("=") + 1) : process.env.MCP_HTTP_HOST || "127.0.0.1";
+    if (hostArg && !host) {
+      console.error(`${colors.red}✘${colors.reset} --host= requires a value (e.g. --host=127.0.0.1)`);
+      process.exit(1);
+    }
 
     // Bearer token: --token= flag > MCP_HTTP_TOKEN env > auto-generated per-process token.
     const tokenArg = process.argv.find((arg) => arg.startsWith("--token="));
     const token =
-      tokenArg ? tokenArg.split("=")[1] : process.env.MCP_HTTP_TOKEN || randomBytes(24).toString("base64url");
+      tokenArg
+        ? tokenArg.slice(tokenArg.indexOf("=") + 1)
+        : process.env.MCP_HTTP_TOKEN || randomBytes(24).toString("base64url");
+    if (tokenArg && !token) {
+      console.error(`${colors.red}✘${colors.reset} --token= requires a value (e.g. --token=my-secret)`);
+      process.exit(1);
+    }
 
     const allowedOriginsEnv = process.env.MCP_HTTP_ALLOWED_ORIGINS;
     const allowedOrigins = allowedOriginsEnv

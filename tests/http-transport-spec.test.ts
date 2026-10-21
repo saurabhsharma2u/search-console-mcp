@@ -217,6 +217,38 @@ describe("SSE server security hardening (issue #114)", () => {
     instance.close();
   });
 
+  it("accepts a bracketed IPv6 loopback Host header ([::1]:port)", async () => {
+    const server = makeServer();
+    const instance = await startSseServer(server, { port: 3467, token: TOKEN, host: "127.0.0.1" });
+
+    // A bracketed IPv6 Host must not be truncated to "[" by a naive ":" split.
+    const res = await getHeaders("http://127.0.0.1:3467/health", { Host: "[::1]:3467" });
+    expect(res.status).toBe(200);
+
+    instance.close();
+  });
+
+  it("responds 503 instead of hanging when the single SSE session is already taken", async () => {
+    const server = makeServer();
+    const instance = await startSseServer(server, { port: 3470, token: TOKEN, host: "127.0.0.1" });
+
+    // Occupy the single-session transport (server.connect is one-shot here).
+    const first = http.get(
+      "http://localhost:3470/sse",
+      { headers: { Authorization: `Bearer ${TOKEN}` } },
+      () => undefined
+    );
+    first.on("error", () => undefined);
+    // Give the first connect a beat to settle before the second client arrives.
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    const second = await getHeaders("http://localhost:3470/sse", { Authorization: `Bearer ${TOKEN}` });
+    expect(second.status).toBe(503);
+
+    first.destroy();
+    instance.close();
+  });
+
   it("binds to 127.0.0.1 by default, not all interfaces", async () => {
     const server = makeServer();
     const instance = await startSseServer(server, { port: 3466, token: TOKEN });

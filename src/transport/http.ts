@@ -35,7 +35,10 @@ function fixedDigest(value: string): Buffer {
  */
 function isLocalHostHeader(hostHeader: string | undefined): boolean {
   if (!hostHeader) return false;
-  const host = hostHeader.split(":")[0].toLowerCase();
+  const h = hostHeader.toLowerCase();
+  // Bracketed IPv6 ([::1]:3000) breaks on a plain ":" split — take the
+  // bracketed host literal first, fall back to the part before ":".
+  const host = h.startsWith("[") ? h.slice(0, h.indexOf("]") + 1) : h.split(":")[0];
   return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1";
 }
 
@@ -130,12 +133,19 @@ export function startSseServer(server: McpServer, options: SseServerOptions = {}
         activeTransports.delete(sessionId);
       };
 
-      await server.connect(transport).catch(() => {
+      try {
+        await server.connect(transport);
+      } catch (err) {
         activeTransports.delete(sessionId);
-        res.writeHead(503, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Server already has an active SSE connection" }));
+        logger.error(`[MCP SSE] Transport connection failed: ${(err as Error).message}`);
+        if (!res.headersSent) {
+          res.writeHead(503, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Server already has an active SSE connection" }));
+        } else {
+          res.end();
+        }
         return;
-      });
+      }
       logger.info(`[MCP SSE] Client connected: ${sessionId}`);
       return;
     }
