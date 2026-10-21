@@ -96,16 +96,21 @@ export function registerPrompts(server: McpServer) {
         "find_quick_wins",
         {
             site_url: z.string().optional().describe("The URL of the site"),
-            min_impressions: z.number().optional().describe("Minimum impressions threshold (default: 1000)"),
+            min_impressions: z.string().optional().describe("Minimum impressions threshold (default: 1000)"),
             date_range: z.string().optional().describe("Date range to analyze (default: 'last 90 days')")
         },
-        async ({ site_url, min_impressions = 1000, date_range = "last 90 days" }) => {
+        async ({ site_url, min_impressions, date_range = "last 90 days" }) => {
+            // MCP prompts/get arguments arrive as strings (Record<string, string>
+            // per spec) — accept a numeric-looking string and coerce (issue #112).
+            const minImpressions = min_impressions !== undefined && /^[0-9]+$/.test(min_impressions.trim())
+                ? parseInt(min_impressions.trim(), 10)
+                : 1000;
             const { isGoogleEnabled, isBingEnabled, isGA4Enabled } = await getEnabledPlatforms();
             const steps = new StepBuilder();
 
             if (isGoogleEnabled) {
-                steps.add(`Run 'seo_striking_distance' with minImpressions=${min_impressions} to get candidates in positions 8-15.`);
-                steps.add(`Run 'seo_low_hanging_fruit' with minImpressions=${min_impressions} to get candidates in positions 5-20.`);
+                steps.add(`Run 'seo_striking_distance' with minImpressions=${minImpressions} to get candidates in positions 8-15.`);
+                steps.add(`Run 'seo_low_hanging_fruit' with minImpressions=${minImpressions} to get candidates in positions 5-20.`);
                 steps.add("For the top 5 candidates, run 'pagespeed_analyze' to check performance.");
             }
             if (isBingEnabled) {
@@ -123,7 +128,7 @@ export function registerPrompts(server: McpServer) {
                     role: "user",
                     content: {
                         type: "text",
-                        text: `Find quick win SEO opportunities for ${site_url || "the active site"} (${date_range}, minimum ${min_impressions} impressions).\n\nWorkflow:\n${steps}`
+                        text: `Find quick win SEO opportunities for ${site_url || "the active site"} (${date_range}, minimum ${minImpressions} impressions).\n\nWorkflow:\n${steps}`
                     }
                 }]
             };
