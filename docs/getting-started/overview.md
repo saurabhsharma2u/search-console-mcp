@@ -17,11 +17,13 @@ You connect your Google and Bing accounts once. After that, your AI agent can pu
 | Access | Scope | What it's used for |
 | --- | --- | --- |
 | Google Search Console | `webmasters.readonly` | Read search performance, indexing status, and sitemap data |
+| Google Search Console *(optional)* | `webmasters` | Sitemap submit/delete and site add/remove — only if you select **Sitemap & site management** at setup |
+| Google Indexing API *(optional)* | `indexing` | URL notifications — only if you select **URL indexing** at setup (JobPosting/BroadcastEvent pages only) |
 | Google Analytics 4 | `analytics.readonly` | Read traffic and engagement reports |
 | Google AdSense | `adsense.readonly` | Read ad revenue and performance reports |
 | Bing Webmaster Tools | API key (not OAuth) | Read search performance data from Bing |
 
-**All access is read-only.** Search Console MCP never modifies, deletes, or shares your data. Nothing is sent to third-party servers — the tool runs locally on your own machine and talks directly to Google's and Microsoft's APIs using your own credentials.
+**Read-only by default.** Search Console MCP never touches your data during setup or reads unless you explicitly opt in to a write capability. Write scopes are requested only when you select them in `setup --engine=google` (or authorize inline when a write tool reports it needs them). Sitemap/site management and URL indexing share no grant with each other; both are off unless chosen. Nothing is sent to third-party servers — the tool runs locally on your own machine and talks directly to Google's and Microsoft's APIs using your own credentials.
 
 ## Who this is for
 

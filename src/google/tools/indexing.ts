@@ -1,6 +1,7 @@
-import { getIndexingClient } from '../client.js';
+import { getIndexingClient, resolveIndexingAccount } from '../client.js';
 import { limitConcurrency } from '../../common/concurrency.js';
 import { resolveFullWebUrl } from '../../common/auth/resolver.js';
+import { translateScopeError } from '../../common/auth/scope-error.js';
 
 /**
  * Notification type for the Google Indexing API.
@@ -65,35 +66,42 @@ export async function publishNotification(
     existingToken?: string
 ): Promise<PublishNotificationResult> {
     const fullUrl = resolveFullWebUrl(url);
+    let accountId: string | undefined;
     let token = existingToken;
-    if (!token) {
-        const auth = await getIndexingClient(siteUrl);
-        const accessToken = await auth.getAccessToken();
-        token = typeof accessToken === 'string' ? accessToken : accessToken.token;
+    try {
+        if (!token) {
+            const account = await resolveIndexingAccount(siteUrl);
+            accountId = account.id;
+            const auth = await getIndexingClient(siteUrl);
+            const accessToken = await auth.getAccessToken();
+            token = typeof accessToken === 'string' ? accessToken : accessToken.token;
+        }
+
+        const response = await fetch(`${INDEXING_API_BASE}:publish`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ url: fullUrl, type })
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`Google Indexing API error: ${response.status} ${errorBody}`);
+        }
+
+        const data = await response.json() as any;
+        return {
+            url: data.urlNotificationMetadata?.url || url,
+            type,
+            notifyTime: data.urlNotificationMetadata?.latestUpdate?.notifyTime ||
+                         data.urlNotificationMetadata?.latestRemove?.notifyTime ||
+                         new Date().toISOString()
+        };
+    } catch (error) {
+        throw translateScopeError(error, 'indexing', accountId);
     }
-
-    const response = await fetch(`${INDEXING_API_BASE}:publish`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ url: fullUrl, type })
-    });
-
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Google Indexing API error: ${response.status} ${errorBody}`);
-    }
-
-    const data = await response.json() as any;
-    return {
-        url: data.urlNotificationMetadata?.url || url,
-        type,
-        notifyTime: data.urlNotificationMetadata?.latestUpdate?.notifyTime ||
-                     data.urlNotificationMetadata?.latestRemove?.notifyTime ||
-                     new Date().toISOString()
-    };
 }
 
 /**
@@ -107,31 +115,38 @@ export async function getNotificationStatus(
     siteUrl: string,
     url: string
 ): Promise<NotificationStatusResult> {
-    const auth = await getIndexingClient(siteUrl);
-    const accessToken = await auth.getAccessToken();
-    const token = typeof accessToken === 'string' ? accessToken : accessToken.token;
+    let accountId: string | undefined;
+    try {
+        const account = await resolveIndexingAccount(siteUrl);
+        accountId = account.id;
+        const auth = await getIndexingClient(siteUrl);
+        const accessToken = await auth.getAccessToken();
+        const token = typeof accessToken === 'string' ? accessToken : accessToken.token;
 
-    const requestUrl = new URL(`${INDEXING_API_BASE}/metadata`);
-    requestUrl.searchParams.set('url', url);
+        const requestUrl = new URL(`${INDEXING_API_BASE}/metadata`);
+        requestUrl.searchParams.set('url', url);
 
-    const response = await fetch(requestUrl.toString(), {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${token}`
+        const response = await fetch(requestUrl.toString(), {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (!response.ok) {
+            const errorBody = await response.text();
+            throw new Error(`Google Indexing API error: ${response.status} ${errorBody}`);
         }
-    });
 
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`Google Indexing API error: ${response.status} ${errorBody}`);
+        const data = await response.json() as any;
+        return {
+            url: data.url || url,
+            latestUpdate: data.latestUpdate || undefined,
+            latestRemove: data.latestRemove || undefined
+        };
+    } catch (error) {
+        throw translateScopeError(error, 'indexing', accountId);
     }
-
-    const data = await response.json() as any;
-    return {
-        url: data.url || url,
-        latestUpdate: data.latestUpdate || undefined,
-        latestRemove: data.latestRemove || undefined
-    };
 }
 
 /**

@@ -1,5 +1,6 @@
-import { getSearchConsoleClient } from '../client.js';
+import { getSearchConsoleClient, getWriteSession } from '../client.js';
 import { searchconsole_v1 } from 'googleapis';
+import { translateScopeError } from '../../common/auth/scope-error.js';
 
 /**
  * List all sites verified in the specified Google account.
@@ -20,8 +21,12 @@ export async function listSites(accountId?: string): Promise<searchconsole_v1.Sc
  * @returns A success message.
  */
 export async function addSite(siteUrl: string): Promise<string> {
-  const client = await getSearchConsoleClient(siteUrl);
-  await client.sites.add({ siteUrl });
+  const { client, accountId } = await getWriteSession(siteUrl);
+  try {
+    await client.sites.add({ siteUrl });
+  } catch (error) {
+    throw translateScopeError(error, 'gsc_write', accountId);
+  }
   return `Successfully added site: ${siteUrl}`;
 }
 
@@ -32,8 +37,12 @@ export async function addSite(siteUrl: string): Promise<string> {
  * @returns A success message.
  */
 export async function deleteSite(siteUrl: string): Promise<string> {
-  const client = await getSearchConsoleClient(siteUrl);
-  await client.sites.delete({ siteUrl });
+  const { client, accountId } = await getWriteSession(siteUrl);
+  try {
+    await client.sites.delete({ siteUrl });
+  } catch (error) {
+    throw translateScopeError(error, 'gsc_write', accountId);
+  }
   return `Successfully deleted site: ${siteUrl}`;
 }
 

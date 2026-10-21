@@ -6,8 +6,16 @@ import { logger } from '../utils/logger.js';
 import { expandHome } from '../utils/paths.js';
 const { machineIdSync } = nodeMachineId;
 
-const SCOPES = [
+export const SCOPES = [
   'https://www.googleapis.com/auth/webmasters.readonly',
+  'https://www.googleapis.com/auth/userinfo.email'
+];
+
+// Full Search Console write scope. Required by sitemaps.submit / sitemaps.delete
+// and sites.add / sites.delete; superset of `webmasters.readonly`, so reads
+// continue to work with the same grant (issue #113).
+export const WRITE_SCOPES = [
+  'https://www.googleapis.com/auth/webmasters',
   'https://www.googleapis.com/auth/userinfo.email'
 ];
 const SERVICE_NAME = 'io.github.saurabhsharma2u.search-console-mcp';
@@ -20,8 +28,21 @@ export const DEFAULT_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'GOCSPX
 // Encryption logic moved to src/common/auth/config.ts
 
 let cachedClientMap: Record<string, searchconsole_v1.Searchconsole> = {};
+let cachedWriteClientMap: Record<string, searchconsole_v1.Searchconsole> = {};
 
-export async function getSearchConsoleClient(siteUrl?: string, accountId?: string): Promise<searchconsole_v1.Searchconsole> {
+/**
+ * Shared builder behind `getSearchConsoleClient` (read-only scopes) and
+ * `getWriteSession` (full `webmasters` scopes, for sitemaps/sites mutations).
+ * Keeps the four auth paths — stored OAuth tokens, service-account key file,
+ * GOOGLE_APPLICATION_CREDENTIALS, and env email/key — in lockstep for both
+ * scope variants (issue #113).
+ */
+async function resolveScopedSearchConsoleClient(
+  scopes: string[],
+  cacheVariant: string,
+  siteUrl?: string,
+  accountId?: string,
+): Promise<{ client: searchconsole_v1.Searchconsole; account: AccountConfig }> {
   // 1. Resolve Account
   let account: AccountConfig;
   if (accountId) {
@@ -35,13 +56,14 @@ export async function getSearchConsoleClient(siteUrl?: string, accountId?: strin
     account = await resolveAccount('', 'google');
   }
 
-  const cacheKey = account.id;
-  if (cachedClientMap[cacheKey]) {
-    logger.debug(`Using cached client for account: ${account.alias} (${account.id})`);
-    return cachedClientMap[cacheKey];
+  const cacheKey = cacheVariant ? `${cacheVariant}_${account.id}` : account.id;
+  const cacheMap = cacheVariant ? cachedWriteClientMap : cachedClientMap;
+  if (cacheMap[cacheKey]) {
+    logger.debug(`Using cached ${cacheVariant || 'read'} client for account: ${account.alias} (${account.id})`);
+    return { client: cacheMap[cacheKey], account };
   }
 
-  logger.debug(`Initializing Search Console client for ${account.alias} (ID: ${account.id}, Engine: ${account.engine})`);
+  logger.debug(`Initializing Search Console ${cacheVariant || 'read'} client for ${account.alias} (ID: ${account.id}, Engine: ${account.engine})`);
 
   // 2. Load Tokens
   const tokens = await loadTokensForAccount(account);
@@ -64,8 +86,8 @@ export async function getSearchConsoleClient(siteUrl?: string, accountId?: strin
 
       const client = google.searchconsole({ version: 'v1', auth: oauth2Client });
       logger.debug(`Client successfully initialized with OAuth2 for ${account.alias}`);
-      cachedClientMap[cacheKey] = client;
-      return client;
+      cacheMap[cacheKey] = client;
+      return { client, account };
     } catch (error) {
       logger.error(`Failed to use tokens for account ${account.alias}:`, (error as Error).message);
     }
@@ -76,38 +98,69 @@ export async function getSearchConsoleClient(siteUrl?: string, accountId?: strin
     assertServiceAccountKeyReadable(account);
     const auth = new google.auth.GoogleAuth({
       keyFilename: expandHome(account.serviceAccountPath),
-      scopes: SCOPES
+      scopes
     });
     const client = google.searchconsole({ version: 'v1', auth });
-    cachedClientMap[cacheKey] = client;
+    cacheMap[cacheKey] = client;
     logger.debug(`Client initialized with Service Account Path for ${account.alias}`);
-    return client;
+    return { client, account };
   }
 
   // 4. Fallback to Service Account (Environment Variables) - Only if no specific account was resolved or it was a legacy fallback
   if (!accountId) {
     if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
       const auth = new google.auth.GoogleAuth({
-        scopes: SCOPES
+        scopes
       });
-      return google.searchconsole({ version: 'v1', auth });
+      return { client: google.searchconsole({ version: 'v1', auth }), account };
     }
 
     if (process.env.GOOGLE_CLIENT_EMAIL && process.env.GOOGLE_PRIVATE_KEY) {
       const jwtClient = new google.auth.JWT({
         email: process.env.GOOGLE_CLIENT_EMAIL,
         key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-        scopes: SCOPES
+        scopes
       });
       await jwtClient.authorize();
-      return google.searchconsole({ version: 'v1', auth: jwtClient as any });
+      return { client: google.searchconsole({ version: 'v1', auth: jwtClient as any }), account };
     }
   }
 
   throw new Error(`Authentication required for ${siteUrl || 'Google Search Console'}. Run setup to add an account.`);
 }
 
-const INDEXING_SCOPES = [
+export async function getSearchConsoleClient(siteUrl?: string, accountId?: string): Promise<searchconsole_v1.Searchconsole> {
+  const { client } = await resolveScopedSearchConsoleClient(SCOPES, '', siteUrl, accountId);
+  return client;
+}
+
+/**
+ * Resolve an account for Search Console write operations (sitemaps
+ * submit/delete, sites add/delete). Returns a client authorized with the
+ * full `webmasters` scope plus the account it resolved to, so callers can
+ * surface actionable "missing write access" errors (issue #113).
+ */
+export async function getWriteSession(siteUrl?: string, accountId?: string): Promise<{ client: searchconsole_v1.Searchconsole; accountId: string }> {
+  const { client, account } = await resolveScopedSearchConsoleClient(WRITE_SCOPES, 'write', siteUrl, accountId);
+  return { client, accountId: account.id };
+}
+
+/**
+ * Drop cached clients after an inline re-authorization so the next call
+ * rebuilds them from the fresh grant (issue #113).
+ */
+export function invalidateScopedClients(accountId?: string): void {
+  const drop = (map: Record<string, searchconsole_v1.Searchconsole>, prefix = '') => {
+    for (const key of Object.keys(map)) {
+      if (!accountId || key.startsWith(`${prefix}${accountId}`)) delete map[key];
+    }
+  };
+  drop(cachedClientMap);
+  drop(cachedWriteClientMap, 'write_');
+  drop(cachedIndexingClientMap as unknown as Record<string, searchconsole_v1.Searchconsole>, 'indexing_');
+}
+
+export const INDEXING_SCOPES = [
   'https://www.googleapis.com/auth/indexing',
   'https://www.googleapis.com/auth/userinfo.email'
 ];
@@ -207,6 +260,21 @@ export async function getIndexingClient(siteUrl?: string, accountId?: string): P
   throw new Error(`Authentication required for Google Indexing API. Ensure your account has the 'indexing' scope.`);
 }
 
+/**
+ * Resolve the account an Indexing API call will use, without building the
+ * client. Exported so callers can attach the account id to scoped errors
+ * (issue #113).
+ */
+export async function resolveIndexingAccount(siteUrl?: string, accountId?: string): Promise<AccountConfig> {
+  if (accountId) {
+    const config = await loadConfig();
+    const account = config.accounts[accountId];
+    if (!account) throw new Error(`Account ${accountId} not found.`);
+    return account;
+  }
+  return await resolveAccount(siteUrl ?? '', 'google');
+}
+
 export async function getUserEmail(tokens: any): Promise<string> {
   const oauth2Client = new google.auth.OAuth2(
     process.env.GOOGLE_CLIENT_ID || DEFAULT_CLIENT_ID,
@@ -238,7 +306,10 @@ export async function saveTokensForAccount(account: AccountConfig, tokens: any) 
   const minimalTokens = {
     refresh_token: tokens.refresh_token || account.tokens?.refresh_token,
     expiry_date: tokens.expiry_date,
-    access_token: tokens.access_token
+    access_token: tokens.access_token,
+    // Persist the granted scope list — it is the authoritative record of
+    // which write capabilities this account has (issue #113).
+    scope: tokens.scope || account.tokens?.scope
   };
 
   // Update account in config

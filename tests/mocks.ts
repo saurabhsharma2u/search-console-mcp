@@ -42,4 +42,6 @@ export const mockSearchConsoleClient = {
 
 vi.mock('../src/google/client', () => ({
   getSearchConsoleClient: vi.fn().mockResolvedValue(mockSearchConsoleClient),
+  getWriteSession: vi.fn().mockResolvedValue({ client: mockSearchConsoleClient, accountId: 'account-1' }),
+  resolveIndexingAccount: vi.fn().mockResolvedValue({ id: 'account-1' }),
 }));

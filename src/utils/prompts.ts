@@ -26,7 +26,7 @@ export interface TextOptions {
 
 export interface PromptDriver {
     select<T>(message: string, options: SelectOption<T>[]): Promise<T>;
-    multiselect<T>(message: string, options: SelectOption<T>[], required?: boolean): Promise<T[]>;
+    multiselect<T>(message: string, options: SelectOption<T>[], required?: boolean, initialValues?: T[]): Promise<T[]>;
     text(message: string, opts?: TextOptions): Promise<string>;
     confirm(message: string, initial?: boolean): Promise<boolean>;
 }
@@ -65,11 +65,12 @@ class ClackDriver implements PromptDriver {
         return result as T;
     }
 
-    async multiselect<T>(message: string, options: SelectOption<T>[], required = false): Promise<T[]> {
+    async multiselect<T>(message: string, options: SelectOption<T>[], required = false, initialValues: T[] = []): Promise<T[]> {
         const result = await clack.multiselect({
             message,
             options: toClackOptions(options),
             required,
+            initialValues: initialValues as any,
         });
         if (clack.isCancel(result)) throw new CancelledError();
         return result as T[];
@@ -104,7 +105,8 @@ export class NonInteractiveDriver implements PromptDriver {
         );
     }
 
-    async multiselect<T>(message: string, _options: SelectOption<T>[], _required = false): Promise<T[]> {
+    async multiselect<T>(message: string, _options: SelectOption<T>[], _required = false, initialValues: T[] = []): Promise<T[]> {
+        if (initialValues.length > 0) return initialValues; // explicit pre-selection satisfies non-TTY runs
         throw new InteractiveRequiredError(
             `"${message}" requires an interactive terminal, or an explicit flag/default.`
         );
@@ -136,8 +138,8 @@ export const prompts = {
     select<T>(message: string, options: SelectOption<T>[]): Promise<T> {
         return activeDriver.select(message, options);
     },
-    multiselect<T>(message: string, options: SelectOption<T>[], required = false): Promise<T[]> {
-        return activeDriver.multiselect(message, options, required);
+    multiselect<T>(message: string, options: SelectOption<T>[], required = false, initialValues: T[] = []): Promise<T[]> {
+        return activeDriver.multiselect(message, options, required, initialValues);
     },
     text(message: string, opts?: TextOptions): Promise<string> {
         return activeDriver.text(message, opts);
