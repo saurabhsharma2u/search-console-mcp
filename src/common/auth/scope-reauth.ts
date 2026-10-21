@@ -11,7 +11,7 @@
  * user-initiated, and servers must not spawn OAuth flows from tool calls.
  */
 
-import { CAPABILITY_LABEL, CAPABILITY_SCOPE, MissingScopeError, WriteCapability } from './scope-error.js';
+import { CAPABILITY_LABEL, CAPABILITY_SCOPE, hasCapability, MissingScopeError, WriteCapability } from './scope-error.js';
 import { startLocalFlow, saveTokensForAccount, invalidateScopedClients, SCOPES, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET } from '../../google/client.js';
 import { AccountConfig, loadConfig } from './config.js';
 import { prompts, CancelledError } from '../../utils/prompts.js';
@@ -68,7 +68,19 @@ export async function upgradeAccountScopes(accountId: string, capability: WriteC
   const tokens = await startLocalFlow(
     DEFAULT_CLIENT_ID,
     DEFAULT_CLIENT_SECRET,
-    [...new Set([...SCOPES, CAPABILITY_SCOPE[capability]])]
+    [
+      ...new Set([
+        ...SCOPES,
+        // Re-request scopes the account already holds for write capabilities:
+        // consent returns only the requested list, and omitting existing grants
+        // would drop them from the persisted token (e.g. upgrading gsc_write
+        // on an account that already has indexing).
+        ...(Object.keys(CAPABILITY_SCOPE) as WriteCapability[])
+          .filter((cap) => hasCapability(account, cap))
+          .map((cap) => CAPABILITY_SCOPE[cap]),
+        CAPABILITY_SCOPE[capability],
+      ]),
+    ]
   );
 
   // saveTokensForAccount persists the new grant (including its `scope`

@@ -2,7 +2,7 @@ import { resolve } from 'path';
 import { google } from 'googleapis';
 import { AccountConfig, loadConfig, updateAccount } from '../../common/auth/config.js';
 import { startLocalFlow, getUserEmail, logout, getSearchConsoleClient, SCOPES, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, saveTokensForAccount } from '../../google/client.js';
-import { prompts, withSpinner, CancelledError } from '../../utils/prompts.js';
+import { prompts, withSpinner, CancelledError, InteractiveRequiredError } from '../../utils/prompts.js';
 import { validateAlias } from '../../utils/validation.js';
 import { colors } from '../../utils/ui.js';
 import { CAPABILITY_SCOPE, CAPABILITY_LABEL, hasCapability, WriteCapability } from '../../common/auth/scope-error.js';
@@ -57,23 +57,33 @@ async function selectWriteCapabilities(): Promise<WriteCapability[]> {
         // First run / unreadable config: nothing preselected.
     }
 
-    return await prompts.multiselect<WriteCapability>(
-        'Write capabilities (optional — the server stays read-only by default)',
-        [
-            {
-                value: 'gsc_write' as WriteCapability,
-                label: 'Sitemap & site management',
-                hint: `submit/delete sitemaps, add/remove properties — Google scope ${CAPABILITY_SCOPE.gsc_write}`
-            },
-            {
-                value: 'indexing' as WriteCapability,
-                label: 'URL indexing',
-                hint: `${CAPABILITY_LABEL.indexing} — Google scope ${CAPABILITY_SCOPE.indexing}`
-            },
-        ],
-        false,
-        preselected
-    );
+    let selected: WriteCapability[];
+    try {
+        selected = await prompts.multiselect<WriteCapability>(
+            'Write capabilities (optional — the server stays read-only by default)',
+            [
+                {
+                    value: 'gsc_write' as WriteCapability,
+                    label: 'Sitemap & site management',
+                    hint: `submit/delete sitemaps, add/remove properties — Google scope ${CAPABILITY_SCOPE.gsc_write}`
+                },
+                {
+                    value: 'indexing' as WriteCapability,
+                    label: 'URL indexing',
+                    hint: `${CAPABILITY_LABEL.indexing} — Google scope ${CAPABILITY_SCOPE.indexing}`
+                },
+            ],
+            false,
+            preselected
+        );
+    } catch (e) {
+        // Non-TTY runs (pipelines, headless setup) have no unattended default —
+        // continue read-only there instead of failing the whole login (matches
+        // the old confirm prompt's non-interactive behavior).
+        if (e instanceof InteractiveRequiredError) return preselected;
+        throw e;
+    }
+    return selected;
 }
 
 /** Base read-only scopes plus one scope per selected write capability. */

@@ -118,7 +118,18 @@ export async function runCli(argv = process.argv): Promise<number> {
     if (error instanceof MissingScopeError) {
       console.error(`\n✘ ${error.message}`);
       const { offerScopeReauth } = await import("../common/auth/scope-reauth.js");
-      const authorized = await offerScopeReauth(error);
+      let authorized = false;
+      try {
+        authorized = await offerScopeReauth(error);
+      } catch (reauthError) {
+        // Consent cancelled, OAuth callback port busy, unknown account...
+        // surface it cleanly instead of an unhandled rejection.
+        if (!(reauthError instanceof Error && reauthError.name === 'CancelledError')) {
+          console.error(`Re-authorization failed: ${reauthError instanceof Error ? reauthError.message : String(reauthError)}`);
+        }
+        console.error(`Resolution: ${error.resolution}`);
+        return 1;
+      }
       if (!authorized) {
         console.error(`Resolution: ${error.resolution}`);
         return 1;
