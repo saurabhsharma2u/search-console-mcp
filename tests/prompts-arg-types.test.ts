@@ -1,8 +1,20 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { registerPrompts } from '../src/prompts/index.js';
+
+// Hermetic: the find_quick_wins Google branch depends on platform detection,
+// which reads real credential files/env on the host. Pin it so CI (no local
+// Google config) takes the same path as dev machines.
+vi.mock('../src/common/platforms.js', () => ({
+  getEnabledPlatforms: async () => ({
+    isGoogleEnabled: true,
+    isBingEnabled: false,
+    isGA4Enabled: false,
+    isAdSenseEnabled: false,
+  }),
+}));
 
 /**
  * Regression test for issue #112.
