@@ -61,6 +61,8 @@ vi.mock('../src/google/client.js', () => ({
     getSearchConsoleClient: vi.fn(),
     logout: vi.fn(),
     saveTokensForAccount: vi.fn(),
+    SCOPES: ['https://www.googleapis.com/auth/webmasters.readonly', 'https://www.googleapis.com/auth/userinfo.email'],
+    WRITE_SCOPES: ['https://www.googleapis.com/auth/webmasters', 'https://www.googleapis.com/auth/userinfo.email'],
     DEFAULT_CLIENT_ID: 'mock-id',
     DEFAULT_CLIENT_SECRET: 'mock-secret'
 }));
@@ -217,7 +219,8 @@ describe('Setup Full', () => {
         it('should handle Google Login flow', async () => {
             process.argv = ['node', 'setup.ts', '--engine=google'];
             driver.selectResponses = ['oauth'];
-            driver.confirmResponses = [false, false]; // indexing scope, star ask
+            driver.multiselectResponses = [[]]; // write capabilities (none); replaces old indexing confirm
+            driver.confirmResponses = [false]; // star ask
             driver.textResponses = ['my-google'];
 
             vi.mocked(googleClient.startLocalFlow).mockResolvedValue({ access_token: 'token' });
@@ -244,7 +247,8 @@ describe('Setup Full', () => {
         it('should handle Google Login flow with Indexing scope', async () => {
             process.argv = ['node', 'setup.ts', '--engine=google'];
             driver.selectResponses = ['oauth'];
-            driver.confirmResponses = [true, false]; // indexing scope, star ask
+            driver.multiselectResponses = [['indexing']]; // URL indexing write capability
+            driver.confirmResponses = [false]; // star ask
             driver.textResponses = ['my-google-indexing'];
 
             vi.mocked(googleClient.startLocalFlow).mockResolvedValue({ access_token: 'token' });

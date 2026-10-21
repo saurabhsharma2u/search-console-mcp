@@ -9,6 +9,8 @@ vi.mock('../src/google/client.js', () => ({
     startLocalFlow: vi.fn(),
     saveTokensForAccount: vi.fn(),
     getUserEmail: vi.fn(),
+    SCOPES: ['https://www.googleapis.com/auth/webmasters.readonly', 'https://www.googleapis.com/auth/userinfo.email'],
+    WRITE_SCOPES: ['https://www.googleapis.com/auth/webmasters', 'https://www.googleapis.com/auth/userinfo.email'],
     DEFAULT_CLIENT_ID: 'mock-id',
     DEFAULT_CLIENT_SECRET: 'mock-secret'
 }));
@@ -86,7 +88,8 @@ describe('CLI Commands', () => {
             // Mock successfully 
             vi.mocked(googleClient.startLocalFlow).mockResolvedValue({ access_token: 'fake-token' });
             vi.mocked(googleClient.getUserEmail).mockResolvedValue('test@example.com');
-            driver.confirmResponses = [false, false]; // indexing scope, star ask
+            driver.multiselectResponses = [[]]; // write capabilities (none) precede auth
+            driver.confirmResponses = [false]; // star ask
 
             // Import login dynamically
             const { login } = await import('../src/setup.js');
@@ -108,7 +111,7 @@ describe('CLI Commands', () => {
 
         it('should handle login failure', async () => {
             vi.mocked(googleClient.startLocalFlow).mockRejectedValue(new Error('Auth rejected'));
-            driver.confirmResponses = [false]; // indexing scope prompt precedes auth
+            driver.multiselectResponses = [[]]; // write capabilities prompt precedes auth
 
             const { login } = await import('../src/setup.js');
 

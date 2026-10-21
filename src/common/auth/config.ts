@@ -23,6 +23,10 @@ export interface AccountConfig {
         refresh_token?: string | null;
         expiry_date?: number | null;
         access_token?: string | null;
+        // Granted OAuth scope string (space-separated scope URLs) from the
+        // consent/refresh response. Source of truth for which write
+        // capabilities the account has (issue #113).
+        scope?: string | null;
     };
     serviceAccountPath?: string;
     // Bing specific
