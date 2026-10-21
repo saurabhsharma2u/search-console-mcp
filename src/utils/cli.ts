@@ -113,6 +113,31 @@ export async function runCli(argv = process.argv): Promise<number> {
     printFormatted(unwrapped, format);
     return 0;
   } catch (error) {
+    // Insufficient-scope failures get a runtime re-auth offer, then one retry (issue #113)
+    const { MissingScopeError } = await import("../common/auth/scope-error.js");
+    if (error instanceof MissingScopeError) {
+      console.error(`\n✘ ${error.message}`);
+      const { offerScopeReauth } = await import("../common/auth/scope-reauth.js");
+      const authorized = await offerScopeReauth(error);
+      if (!authorized) {
+        console.error(`Resolution: ${error.resolution}`);
+        return 1;
+      }
+      try {
+        const retryResult = await tool.handler(parsed.data);
+        const retryIsError = !!retryResult?.isError;
+        const retryUnwrapped = unwrapMcpResult(retryResult);
+        if (retryIsError) {
+          console.error(typeof retryUnwrapped === "string" ? retryUnwrapped : JSON.stringify(retryUnwrapped, null, 2));
+          return 1;
+        }
+        printFormatted(retryUnwrapped, format);
+        return 0;
+      } catch (retryError) {
+        console.error(`Error executing tool: ${retryError instanceof Error ? retryError.message : String(retryError)}`);
+        return 1;
+      }
+    }
     console.error(`Error executing tool: ${error instanceof Error ? error.message : String(error)}`);
     return 1;
   }

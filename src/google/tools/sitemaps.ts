@@ -1,6 +1,7 @@
-import { getSearchConsoleClient } from '../client.js';
+import { getSearchConsoleClient, getWriteSession } from '../client.js';
 import { searchconsole_v1 } from 'googleapis';
 import { resolveSiteProperty } from '../../common/auth/resolver.js';
+import { translateScopeError } from '../../common/auth/scope-error.js';
 
 /**
  * List all sitemaps submitted for a specific site.
@@ -24,8 +25,12 @@ export async function listSitemaps(siteUrl: string): Promise<searchconsole_v1.Sc
  */
 export async function submitSitemap(siteUrl: string, feedpath: string): Promise<string> {
   const { siteUrl: targetSiteUrl } = await resolveSiteProperty(siteUrl, 'google').catch(() => ({ siteUrl }));
-  const client = await getSearchConsoleClient(siteUrl);
-  await client.sitemaps.submit({ siteUrl: targetSiteUrl, feedpath });
+  const { client, accountId } = await getWriteSession(siteUrl);
+  try {
+    await client.sitemaps.submit({ siteUrl: targetSiteUrl, feedpath });
+  } catch (error) {
+    throw translateScopeError(error, 'gsc_write', accountId);
+  }
   return `Successfully submitted sitemap: ${feedpath} for ${targetSiteUrl}`;
 }
 
@@ -38,8 +43,12 @@ export async function submitSitemap(siteUrl: string, feedpath: string): Promise<
  */
 export async function deleteSitemap(siteUrl: string, feedpath: string): Promise<string> {
   const { siteUrl: targetSiteUrl } = await resolveSiteProperty(siteUrl, 'google').catch(() => ({ siteUrl }));
-  const client = await getSearchConsoleClient(siteUrl);
-  await client.sitemaps.delete({ siteUrl: targetSiteUrl, feedpath });
+  const { client, accountId } = await getWriteSession(siteUrl);
+  try {
+    await client.sitemaps.delete({ siteUrl: targetSiteUrl, feedpath });
+  } catch (error) {
+    throw translateScopeError(error, 'gsc_write', accountId);
+  }
   return `Successfully deleted sitemap: ${feedpath} from ${targetSiteUrl}`;
 }
 

@@ -5,7 +5,8 @@ import { publishNotification, getNotificationStatus, batchPublishNotifications }
 vi.mock('../src/google/client.js', () => ({
     getIndexingClient: vi.fn().mockResolvedValue({
         getAccessToken: vi.fn().mockResolvedValue({ token: 'mock-token' })
-    })
+    }),
+    resolveIndexingAccount: vi.fn().mockResolvedValue({ id: 'account-1' })
 }));
 
 // Mock global fetch

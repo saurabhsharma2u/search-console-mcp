@@ -1,10 +1,11 @@
 import { resolve } from 'path';
 import { google } from 'googleapis';
 import { AccountConfig, loadConfig, updateAccount } from '../../common/auth/config.js';
-import { startLocalFlow, getUserEmail, logout, getSearchConsoleClient, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, saveTokensForAccount } from '../../google/client.js';
+import { startLocalFlow, getUserEmail, logout, getSearchConsoleClient, SCOPES, DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, saveTokensForAccount } from '../../google/client.js';
 import { prompts, withSpinner, CancelledError } from '../../utils/prompts.js';
 import { validateAlias } from '../../utils/validation.js';
 import { colors } from '../../utils/ui.js';
+import { CAPABILITY_SCOPE, CAPABILITY_LABEL, hasCapability, WriteCapability } from '../../common/auth/scope-error.js';
 import { ConfigStatus, log, printBanner, printStep, printSuccess, printError, printInfo, showMcpConfigSnippet, supportProject, acquireServiceAccountKey, testConnection } from '../shared.js';
 
 export async function runLogout() {
@@ -33,6 +34,55 @@ function displaySiteUrl(siteUrl: string): string {
     return display;
 }
 
+/**
+ * Ask which optional write capabilities to authorize (issue #113).
+ * Pre-selection is derived from what each existing Google account's grant
+ * actually covers — re-running setup shows current reality, including
+ * grants made under the old single indexing prompt. Read-only remains the
+ * default when the user selects nothing.
+ */
+async function selectWriteCapabilities(): Promise<WriteCapability[]> {
+    let preselected: WriteCapability[] = [];
+    try {
+        const grantedCaps = new Set<WriteCapability>();
+        const config = await loadConfig();
+        for (const account of Object.values(config.accounts)) {
+            if (account.engine !== 'google') continue;
+            for (const cap of Object.keys(CAPABILITY_SCOPE) as WriteCapability[]) {
+                if (hasCapability(account, cap)) grantedCaps.add(cap);
+            }
+        }
+        preselected = [...grantedCaps];
+    } catch {
+        // First run / unreadable config: nothing preselected.
+    }
+
+    return await prompts.multiselect<WriteCapability>(
+        'Write capabilities (optional — the server stays read-only by default)',
+        [
+            {
+                value: 'gsc_write' as WriteCapability,
+                label: 'Sitemap & site management',
+                hint: `submit/delete sitemaps, add/remove properties — Google scope ${CAPABILITY_SCOPE.gsc_write}`
+            },
+            {
+                value: 'indexing' as WriteCapability,
+                label: 'URL indexing',
+                hint: `${CAPABILITY_LABEL.indexing} — Google scope ${CAPABILITY_SCOPE.indexing}`
+            },
+        ],
+        false,
+        preselected
+    );
+}
+
+/** Base read-only scopes plus one scope per selected write capability. */
+function scopesForCapabilities(caps: WriteCapability[]): string[] {
+    const scopes = new Set(SCOPES);
+    for (const cap of caps) scopes.add(CAPABILITY_SCOPE[cap]);
+    return [...scopes];
+}
+
 export async function login() {
     printBanner();
     printStep(1, 'Browser Authorization');
@@ -45,20 +95,8 @@ export async function login() {
     log(`   JobPosting or BroadcastEvent structured data. Using it for other content`);
     log(`   types may result in submissions being ignored by Google.`);
 
-    const useIndexing = await prompts.confirm(
-        'Also authorize the Google Indexing API write scope? (Officially for JobPosting/BroadcastEvent pages only)',
-        false
-    );
-    const scopes = useIndexing
-        ? [
-            'https://www.googleapis.com/auth/webmasters.readonly',
-            'https://www.googleapis.com/auth/indexing',
-            'https://www.googleapis.com/auth/userinfo.email'
-          ]
-        : [
-            'https://www.googleapis.com/auth/webmasters.readonly',
-            'https://www.googleapis.com/auth/userinfo.email'
-          ];
+    const capabilities = await selectWriteCapabilities();
+    const scopes = scopesForCapabilities(capabilities);
 
     try {
         const tokens = await startLocalFlow(DEFAULT_CLIENT_ID, DEFAULT_CLIENT_SECRET, scopes);
