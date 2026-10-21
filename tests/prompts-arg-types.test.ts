@@ -27,7 +27,7 @@ vi.mock('../src/common/platforms.js', () => ({
  */
 
 async function makePromptServer(): Promise<Client> {
-  const server = new McpServer({ name: 'repro-server', version: '2.1.3' });
+  const server = new McpServer({ name: 'repro-server', version: '2.1.4' });
   registerPrompts(server);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: 'repro-client', version: '1.0.0' });
