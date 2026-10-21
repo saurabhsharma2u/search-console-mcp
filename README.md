@@ -20,10 +20,20 @@ Stop exporting CSVs. Start asking your AI agent questions about your site's traf
 
 ---
 
-## ⚡ What's New in v2.1.2
+## ⚡ What's New in v2.1.4
+
+* 🎯 **Correct-property resolution (`#110`)**: Accounts with multiple verified properties sharing one hostname (locale subfolders like `/en-gb/` + `/de-de/`, the root property, and the `sc-domain:` property) could get **analytics data silently returned for the wrong property** — whichever colliding property the resolver happened to touch first. Resolution is now exact by property type and path; bare-domain queries rank deterministically (`sc-domain:` › root), and truly ambiguous requests fail with the list of matching properties instead of guessing. *With thanks to [Alcip](https://github.com/Alcip) for the outstanding root-cause analysis in #110.*
+* 🔐 **Explicit write authorization for GSC mutation tools (`#113`)**: `sitemaps_submit`, `sitemaps_delete` and site-management calls now require an explicit webmasters write scope, offered as an inline re-authorization flow in the CLI when a tool first needs it. The server stays read-only by default at setup; you opt into write capabilities explicitly. *Credit to [chase-weiser88](https://github.com/chase-weiser88) for surfacing the missing write scope in #84.*
+* 🛡️ **SSE transport secured & deprecated (`#114`)**: SSE mode now binds to `127.0.0.1` by default (`--host=`/`MCP_HTTP_HOST` to override), requires a bearer token (`--token=`/`MCP_HTTP_TOKEN`, auto-generated if unset), never sends wildcard CORS, and rejects forged non-loopback Host headers (DNS-rebinding guard). **SSE mode is deprecated** and will be removed in the next release — prefer the default stdio transport.
+* 🪲 **`find_quick_wins` prompt typing (`#112`)**: `min_impressions` was declared as a number, but MCP clients must send prompt arguments as strings — so every use errored with `expected number, received string`. It is now string-typed and coerced internally (`1000` default preserved).
+
+<details>
+<summary><strong>What's New in v2.1.2</strong></summary>
 
 * 🤖 **GenAI Query Insights (`genai_query_insights`)**: Surfaces likely generative-AI / AI-Mode / conversational "fanout" queries across Google and Bing. This is **custom heuristic logic** — no official API is provided by Google or Bing for GenAI citation data, so it flags prompt verbs, follow-ups, acknowledgements, and conversational phrasing on the regular query data both engines already return. See [docs →](https://searchconsolemcp.saurabh.app/tools/seo-intelligence)
 * 🪲 **`analytics_query` fix**: `rowLimit` is now honored instead of being silently ignored (previously always returned up to 1000 rows); `limit` remains as a backward-compatible alias.
+
+</details>
 
 <details>
 <summary><strong>What's New in v2.1.0</strong></summary>
