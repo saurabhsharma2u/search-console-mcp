@@ -1,11 +1,11 @@
 import { getBingClient, BingUrlSubmissionQuota } from '../client.js';
-import { resolveSiteProperty, resolveFullWebUrl } from '../../common/auth/resolver.js';
+import { resolveSitePropertyOrFallback, resolveFullWebUrl } from '../../common/auth/resolver.js';
 
 /**
  * Get remaining URL submission quota.
  */
 export async function getUrlSubmissionQuota(siteUrl: string): Promise<BingUrlSubmissionQuota> {
-    const { siteUrl: targetSiteUrl } = await resolveSiteProperty(siteUrl, 'bing').catch(() => ({ siteUrl }));
+    const targetSiteUrl = await resolveSitePropertyOrFallback(siteUrl, 'bing');
     const client = await getBingClient(siteUrl);
     return client.getUrlSubmissionQuota(targetSiteUrl);
 }
@@ -14,7 +14,7 @@ export async function getUrlSubmissionQuota(siteUrl: string): Promise<BingUrlSub
  * Submit a single URL for indexing.
  */
 export async function submitUrl(siteUrl: string, url: string): Promise<string> {
-    const { siteUrl: targetSiteUrl } = await resolveSiteProperty(siteUrl, 'bing').catch(() => ({ siteUrl }));
+    const targetSiteUrl = await resolveSitePropertyOrFallback(siteUrl, 'bing');
     const fullUrl = resolveFullWebUrl(url);
     const client = await getBingClient(siteUrl);
     await client.submitUrl(targetSiteUrl, fullUrl);
@@ -25,7 +25,7 @@ export async function submitUrl(siteUrl: string, url: string): Promise<string> {
  * Submit a batch of URLs for indexing.
  */
 export async function submitUrlBatch(siteUrl: string, urlList: string[]): Promise<string> {
-    const { siteUrl: targetSiteUrl } = await resolveSiteProperty(siteUrl, 'bing').catch(() => ({ siteUrl }));
+    const targetSiteUrl = await resolveSitePropertyOrFallback(siteUrl, 'bing');
     const fullUrlList = urlList.map(resolveFullWebUrl);
     const client = await getBingClient(siteUrl);
     await client.submitUrlBatch(targetSiteUrl, fullUrlList);

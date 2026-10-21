@@ -1,12 +1,12 @@
 import { queryAnalytics, AnalyticsOptions } from "../../../google/tools/analytics.js";
 import { getBingClient, BingQueryStats, BingPageStats } from "../../../bing/client.js";
 import { parseMicrosoftDate } from "../../utils/dates.js";
-import { resolveSiteProperty } from "../../auth/resolver.js";
+import { resolveSitePropertyOrFallback } from "../../auth/resolver.js";
 import { CompareEnginesOptions } from "./types.js";
 import { searchconsole_v1 } from "googleapis";
 
 export async function fetchGoogleData(options: CompareEnginesOptions): Promise<searchconsole_v1.Schema$ApiDataRow[]> {
-  const { siteUrl: resolvedSiteUrl } = await resolveSiteProperty(options.siteUrl, 'google').catch(() => ({ siteUrl: options.siteUrl }));
+  const resolvedSiteUrl = await resolveSitePropertyOrFallback(options.siteUrl, 'google');
   const analyticsOptions: AnalyticsOptions = {
     siteUrl: resolvedSiteUrl,
     startDate: options.startDate,
@@ -30,7 +30,7 @@ export async function fetchGoogleData(options: CompareEnginesOptions): Promise<s
 }
 
 export async function fetchBingData(options: CompareEnginesOptions): Promise<BingQueryStats[] | BingPageStats[]> {
-  const { siteUrl: resolvedSiteUrl } = await resolveSiteProperty(options.siteUrl, 'bing').catch(() => ({ siteUrl: options.siteUrl }));
+  const resolvedSiteUrl = await resolveSitePropertyOrFallback(options.siteUrl, 'bing');
   const client = await getBingClient(resolvedSiteUrl);
   let rawData: (BingQueryStats | BingPageStats)[] = [];
 

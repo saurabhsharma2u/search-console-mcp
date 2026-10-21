@@ -2,7 +2,7 @@ import * as sites from './sites.js';
 import * as sitemaps from './sitemaps.js';
 import * as analytics from './analytics.js';
 import { limitConcurrency } from '../../common/concurrency.js';
-import { resolveSiteProperty } from '../../common/auth/resolver.js';
+import { resolveSitePropertyOrFallback } from '../../common/auth/resolver.js';
 
 /**
  * Health status for a single site property.
@@ -56,7 +56,7 @@ export interface SiteHealthReport {
  * @returns A health report for the site.
  */
 async function checkSite(rawSiteUrl: string, existingSiteInfo?: Awaited<ReturnType<typeof sites.getSite>>): Promise<SiteHealthReport> {
-    const { siteUrl } = await resolveSiteProperty(rawSiteUrl, 'google').catch(() => ({ siteUrl: rawSiteUrl }));
+    const siteUrl = await resolveSitePropertyOrFallback(rawSiteUrl, 'google');
     const issues: string[] = [];
 
     // Run all checks in parallel

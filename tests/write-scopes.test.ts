@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock the auth resolver used by tool modules
 vi.mock('../src/common/auth/resolver.js', () => ({
     resolveSiteProperty: vi.fn().mockResolvedValue({ siteUrl: 'https://example.com' }),
+    resolveSitePropertyOrFallback: vi.fn().mockResolvedValue('https://example.com'),
 }));
 
 // Mock the Google client module: capture which scoped entrypoint each

@@ -9,6 +9,7 @@ export interface ResolutionError extends Error {
 
 const PROTOCOL_REGEX = /^https?:\/\//i;
 const websiteNormCache = new Map<string, { type: 'domain' | 'url-prefix'; value: string }>();
+const canonicalKeyCache = new Map<string, string>();
 
 /**
  * Extracts normalized hostname from any domain, URL prefix, or sc-domain: string.
@@ -59,6 +60,125 @@ export function normalizeWebsite(site: string): { type: 'domain' | 'url-prefix';
         websiteNormCache.set(site, cached);
     }
     return cached;
+}
+
+/**
+ * Canonical comparison key for a domain, URL prefix, or `sc-domain:` string.
+ *
+ * Unlike {@link normalizeWebsite} (which lowercases the ENTIRE value), this
+ * lowercase is applied selectively:
+ * - `sc-domain:` → type-tagged (`sc-domain:<host>`), fully lowercased
+ * - URL prefix    → lowercased scheme+host, path case PRESERVED, trailing
+ *   slashes stripped (GSC URL-prefix paths are case-sensitive, and
+ *   `https://example.com/Shop/` and `https://example.com/shop/` are distinct
+ *   properties)
+ * - bare domain   → lowercased host, port stripped
+ *
+ * Because the key is type-tagged, a `sc-domain:` property can never compare
+ * equal to a URL-prefix or bare-domain string of the same host.
+ */
+function canonicalPropertyKey(site: string): string {
+    if (!site) return '';
+    const cached = canonicalKeyCache.get(site);
+    if (cached !== undefined) return cached;
+
+    const trimmed = site.trim();
+    const lower = trimmed.toLowerCase();
+    let key: string;
+
+    if (lower.startsWith('sc-domain:')) {
+        key = 'sc-domain:' + lower.substring(10).trim().replace(/\/+$/, '');
+    } else {
+        const m = /^([a-z]+:\/\/)([^/]*)(\/?.*)$/i.exec(trimmed);
+        if (m) {
+            key = m[1].toLowerCase() + m[2].toLowerCase() + m[3].replace(/\/+$/, '');
+        } else if (trimmed.includes('/')) {
+            // Scheme-less prefix, e.g. "example.com/shop"
+            const slashIdx = trimmed.indexOf('/');
+            key = trimmed.substring(0, slashIdx).toLowerCase() + trimmed.substring(slashIdx).replace(/\/+$/, '');
+        } else {
+            key = extractHost(trimmed);
+        }
+    }
+
+    if (canonicalKeyCache.size < 500) {
+        canonicalKeyCache.set(site, key);
+    }
+    return key;
+}
+
+/**
+ * Selects the single best-matching registered property from `candidates` for a
+ * caller-supplied `target` (bare domain, URL prefix, or `sc-domain:` string).
+ *
+ * Rules, in order:
+ *
+ * 1. **Exact match** — canonical comparison that preserves property type and
+ *    URL-prefix path case ({@link canonicalPropertyKey}). An exact match is
+ *    returned verbatim, so asking for `sc-domain:example.com` never resolves to
+ *    a URL-prefix sibling, and a locale-subfolder property only matches itself.
+ *
+ * 2. **Fuzzy match, only for bare-domain input** (`example.com` — no protocol,
+ *    `sc-domain:` prefix, or path). Candidates sharing the target host EXACTLY
+ *    (no subdomain matching in either direction — `hosting.example.com` never
+ *    matches `example.com`) are ranked deterministically:
+ *    `sc-domain:<host>` > `https://<host>/` > `http://<host>/`.
+ *    If same-host candidates exist but none is a domain or root property
+ *    (e.g. only locale subfolders), the choice is ambiguous: this throws a
+ *    {@link ResolutionError} with code `'AMBIGUOUS'` listing the candidates
+ *    instead of silently picking one and returning another property's data.
+ *
+ * 3. Anything else (a typed input with no exact match, or a bare domain with no
+ *    same-host candidate) returns `undefined` — callers fall back to their own
+ *    defaults rather than guessing across property types (issue #110).
+ */
+export function selectSiteProperty(target: string, candidates: string[]): string | undefined {
+    if (!target || !candidates || candidates.length === 0) return undefined;
+
+    const targetKey = canonicalPropertyKey(target);
+    if (!targetKey) return undefined;
+
+    // 1. Exact match
+    for (const candidate of candidates) {
+        if (candidate && canonicalPropertyKey(candidate) === targetKey) {
+            return candidate;
+        }
+    }
+
+    // 2. Fuzzy match only applies to bare-domain input. A typed target
+    //    (URL prefix or sc-domain:) must match exactly or not at all —
+    //    guessing across property types is what caused issue #110.
+    const lowerTarget = target.trim().toLowerCase();
+    if (lowerTarget.startsWith('sc-domain:') || PROTOCOL_REGEX.test(target) || target.includes('/')) {
+        return undefined;
+    }
+
+    const targetHost = extractHost(target);
+    if (!targetHost) return undefined;
+
+    const sameHost = candidates.filter(c => c && extractHost(c) === targetHost);
+    if (sameHost.length === 0) return undefined;
+
+    const domainProperty = sameHost.find(c =>
+        canonicalPropertyKey(c) === `sc-domain:${targetHost}`
+    );
+    if (domainProperty) return domainProperty;
+
+    const httpsRoot = sameHost.find(c => canonicalPropertyKey(c) === `https://${targetHost}`);
+    if (httpsRoot) return httpsRoot;
+
+    const httpRoot = sameHost.find(c => canonicalPropertyKey(c) === `http://${targetHost}`);
+    if (httpRoot) return httpRoot;
+
+    // Same host, but every candidate is a non-root URL prefix (locale
+    // subfolders, path-scoped properties) — refuse to guess.
+    const error = new Error(
+        `Ambiguous site '${target}': ${sameHost.length} registered properties share the host '${targetHost}' ` +
+        `and none of them is a domain or root property: ${sameHost.join(', ')}. ` +
+        `Pass the exact property string instead (e.g. "sc-domain:${targetHost}" or a specific URL prefix).`
+    ) as ResolutionError;
+    error.code = 'AMBIGUOUS';
+    throw error;
 }
 
 /**
@@ -165,12 +285,12 @@ export async function resolveSiteProperty(siteUrl: string, engine: EngineType): 
 
     const targetHost = extractHost(siteUrl);
 
-    // 1. Look for exact registered property string in account.websites
+    // 1. Look for the exact registered property string in account.websites.
+    //    selectSiteProperty never guesses across property types (issue #110)
+    //    and throws AMBIGUOUS for a bare domain colliding with non-root
+    //    properties instead of silently picking one.
     if (account.websites && account.websites.length > 0 && targetHost) {
-        const matchingWebsite = account.websites.find(w => {
-            const wHost = extractHost(w);
-            return wHost && (targetHost === wHost || targetHost.endsWith('.' + wHost) || wHost.endsWith('.' + targetHost));
-        });
+        const matchingWebsite = selectSiteProperty(siteUrl, account.websites);
 
         if (matchingWebsite) {
             let finalUrl = matchingWebsite;
@@ -185,10 +305,7 @@ export async function resolveSiteProperty(siteUrl: string, engine: EngineType): 
     if (engine === 'google' && targetHost) {
         const authorizedSites = await getGoogleAuthorizedSites(account.id);
         if (authorizedSites.length > 0) {
-            const matchedSite = authorizedSites.find(s => {
-                const sHost = extractHost(s);
-                return sHost && (targetHost === sHost || targetHost.endsWith('.' + sHost) || sHost.endsWith('.' + targetHost));
-            });
+            const matchedSite = selectSiteProperty(siteUrl, authorizedSites);
             if (matchedSite) {
                 return { account, siteUrl: matchedSite };
             }
@@ -207,6 +324,30 @@ export async function resolveSiteProperty(siteUrl: string, engine: EngineType): 
     }
 
     return { account, siteUrl: fallbackUrl };
+}
+
+/**
+ * Call-site wrapper around {@link resolveSiteProperty} that preserves the
+ * historic `.catch(() => ({ siteUrl }))` behavior for operational failures
+ * (no account configured, site outside an account boundary, GSC listing
+ * errors): the raw `siteUrl` is returned unchanged, exactly as the swallow
+ * previously did.
+ *
+ * The one exception is a `ResolutionError` with code `'AMBIGUOUS'`: resolution
+ * found a host collision and deliberately refused to guess (issue #110) —
+ * swallowing it would send the raw, unresolved property string to the API and
+ * hide the actionable message from the user, so it is re-thrown instead.
+ */
+export async function resolveSitePropertyOrFallback(siteUrl: string, engine: EngineType): Promise<string> {
+    try {
+        const { siteUrl: resolved } = await resolveSiteProperty(siteUrl, engine);
+        return resolved;
+    } catch (err) {
+        if ((err as ResolutionError)?.code === 'AMBIGUOUS') {
+            throw err;
+        }
+        return siteUrl;
+    }
 }
 
 /**
